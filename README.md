@@ -46,6 +46,39 @@ agent = EminenceGrise::CodexAgent.new(
 EminenceGrise::Runner.new(queue: queue, agent: agent, logger: $stdout).run
 ```
 
+## Orchestration
+
+Agents can return `AgentResult` objects to create more work. The runner appends generated tasks to the queue and continues processing sequentially.
+
+```ruby
+planner = EminenceGrise::Agent.new do |task|
+  EminenceGrise::AgentResult.split([
+    EminenceGrise::Task.new(id: "#{task.id}-code", title: "Implement #{task.title}"),
+    EminenceGrise::Task.new(id: "#{task.id}-docs", title: "Document #{task.title}")
+  ])
+end
+
+EminenceGrise::Runner.new(queue: queue, agent: planner).run
+```
+
+Specialist agents can be registered and selected by a router:
+
+```ruby
+registry = EminenceGrise::AgentRegistry.new
+registry.register(:docs, docs_agent)
+registry.register(:code, code_agent)
+
+router = EminenceGrise::RouterAgent.new(registry: registry, default: :code) do |task|
+  task.metadata[:agent]
+end
+```
+
+A planner can also delegate by returning a routed task:
+
+```ruby
+EminenceGrise::AgentResult.delegated(task, to: :docs)
+```
+
 ## Process API
 
 Use `ProcessRunner` when you want Éminence Grise to run a loop script for you:
@@ -64,6 +97,7 @@ process.stop_daemon
 ```sh
 bundle install
 ruby -I./lib examples/basic_loop.rb
+ruby -I./lib examples/orchestration_loop.rb
 ruby -I./lib examples/codex_loop.rb
 rake spec
 ```

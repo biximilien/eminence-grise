@@ -38,6 +38,35 @@ RSpec.describe EminenceGrise::Runner do
     expect(queue.size).to eq(1)
   end
 
+  it "enqueues tasks returned by agent results" do
+    queue = EminenceGrise::MemoryQueue.new([
+      EminenceGrise::Task.new(id: "one", title: "First")
+    ])
+    processed = []
+    agent = EminenceGrise::Agent.new do |task|
+      processed << task.id
+      EminenceGrise::AgentResult.complete(tasks: [
+        EminenceGrise::Task.new(id: "two", title: "Second")
+      ]) if task.id == "one"
+    end
+
+    count = described_class.new(queue: queue, agent: agent).run
+
+    expect(count).to eq(2)
+    expect(processed).to eq(["one", "two"])
+  end
+
+  it "raises failed agent results" do
+    queue = EminenceGrise::MemoryQueue.new([
+      EminenceGrise::Task.new(id: "one", title: "First")
+    ])
+    agent = EminenceGrise::Agent.new { |_task| EminenceGrise::AgentResult.failed("nope") }
+
+    expect do
+      described_class.new(queue: queue, agent: agent).run
+    end.to raise_error(RuntimeError, "nope")
+  end
+
   it "waits until retry_at and retries the same task" do
     retry_at = Time.iso8601("2026-05-02T15:00:05-04:00")
     now = Time.iso8601("2026-05-02T15:00:00-04:00")

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "time"
+require_relative "agent_result"
 
 module EminenceGrise
   class Runner
@@ -31,7 +32,8 @@ module EminenceGrise
     def run_task(task)
       loop do
         @logger&.puts("starting #{task.id}: #{task.title}")
-        @agent.call(task)
+        result = @agent.call(task)
+        handle_result(result)
         @logger&.puts("finished #{task.id}: #{task.title}")
         return
       rescue StandardError => error
@@ -46,6 +48,23 @@ module EminenceGrise
 
     def wait_for_retry?(error)
       @wait_on_retry_at && error.respond_to?(:retry_at) && error.retry_at
+    end
+
+    def handle_result(result)
+      return unless result.is_a?(AgentResult)
+
+      raise failure_for(result) if result.failed?
+
+      result.tasks.each do |task|
+        @queue.push(task)
+        @logger&.puts("enqueued #{task.id}: #{task.title}")
+      end
+    end
+
+    def failure_for(result)
+      return result.output if result.output.is_a?(StandardError)
+
+      RuntimeError.new(result.output || "agent returned failed result")
     end
   end
 end
