@@ -31,6 +31,7 @@ RSpec.describe EminenceGrise::ProcessRunner do
       script: "examples/basic_loop.rb",
       require_path: "./lib",
       working_directory: Dir.pwd,
+      logger: EminenceGrise::Logging.null,
       loader: ->(script) { loaded << [script, Dir.pwd, $LOAD_PATH.first] }
     )
 
@@ -47,6 +48,7 @@ RSpec.describe EminenceGrise::ProcessRunner do
       pidfile: "tmp/runner.pid",
       stdout: "tmp/runner.out.log",
       stderr: "tmp/runner.err.log",
+      logger: EminenceGrise::Logging.null,
       daemon_class: FakeDaemon
     )
 
@@ -66,6 +68,7 @@ RSpec.describe EminenceGrise::ProcessRunner do
         script: "worker.rb",
         ruby: "ruby",
         working_directory: dir,
+        logger: EminenceGrise::Logging.null,
         daemon_class: FakeDaemon
       )
 
@@ -80,6 +83,7 @@ RSpec.describe EminenceGrise::ProcessRunner do
       script: "worker.rb",
       ruby: "ruby",
       require_path: nil,
+      logger: EminenceGrise::Logging.null,
       daemon_class: FakeDaemon
     )
 
@@ -93,6 +97,7 @@ RSpec.describe EminenceGrise::ProcessRunner do
       script: "worker.rb",
       ruby: "ruby",
       require_path: "custom/lib",
+      logger: EminenceGrise::Logging.null,
       daemon_class: FakeDaemon
     )
 
@@ -102,7 +107,7 @@ RSpec.describe EminenceGrise::ProcessRunner do
   end
 
   it "exposes daemon status operations" do
-    runner = described_class.new(script: nil, daemon_class: FakeDaemon)
+    runner = described_class.new(script: nil, logger: EminenceGrise::Logging.null, daemon_class: FakeDaemon)
 
     expect(runner.daemon_running?).to be(true)
     expect(runner.daemon_pid).to eq(123)
@@ -110,9 +115,27 @@ RSpec.describe EminenceGrise::ProcessRunner do
   end
 
   it "requires a script for foreground and daemon starts" do
-    runner = described_class.new(script: nil, daemon_class: FakeDaemon)
+    runner = described_class.new(script: nil, logger: EminenceGrise::Logging.null, daemon_class: FakeDaemon)
 
     expect { runner.run_foreground }.to raise_error(ArgumentError, /script is required/)
     expect { runner.start_daemon }.to raise_error(ArgumentError, /script is required/)
+  end
+
+  it "defaults daemon logging to the framework log file" do
+    Dir.mktmpdir do |dir|
+      log_path = File.join(dir, "runner.log")
+      runner = described_class.new(
+        script: "worker.rb",
+        ruby: "ruby",
+        require_path: nil,
+        log_path: log_path,
+        daemon_class: FakeDaemon
+      )
+
+      runner.start_daemon
+
+      expect(File.read(log_path)).to include("daemon started")
+      runner.send(:daemon_logger).close
+    end
   end
 end

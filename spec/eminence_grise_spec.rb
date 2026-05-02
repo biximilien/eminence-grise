@@ -56,6 +56,27 @@ RSpec.describe EminenceGrise::Runner do
     expect(processed).to eq(["one", "two"])
   end
 
+  it "logs task lifecycle and enqueued tasks through logger levels" do
+    logger = instance_double(Logger)
+    allow(logger).to receive(:info)
+    allow(logger).to receive(:warn)
+    allow(logger).to receive(:error)
+    queue = EminenceGrise::MemoryQueue.new([
+      EminenceGrise::Task.new(id: "one", title: "First")
+    ])
+    agent = EminenceGrise::Agent.new do |task|
+      EminenceGrise::AgentResult.complete(tasks: [
+        EminenceGrise::Task.new(id: "two", title: "Second")
+      ]) if task.id == "one"
+    end
+
+    described_class.new(queue: queue, agent: agent, logger: logger).run
+
+    expect(logger).to have_received(:info).with(/task started id=one/)
+    expect(logger).to have_received(:info).with(/task enqueued id=two/)
+    expect(logger).to have_received(:info).with(/task finished id=one/)
+  end
+
   it "raises failed agent results" do
     queue = EminenceGrise::MemoryQueue.new([
       EminenceGrise::Task.new(id: "one", title: "First")
@@ -65,6 +86,22 @@ RSpec.describe EminenceGrise::Runner do
     expect do
       described_class.new(queue: queue, agent: agent).run
     end.to raise_error(RuntimeError, "nope")
+  end
+
+  it "logs task failures before raising" do
+    logger = instance_double(Logger)
+    allow(logger).to receive(:info)
+    allow(logger).to receive(:warn)
+    allow(logger).to receive(:error)
+    queue = EminenceGrise::MemoryQueue.new([
+      EminenceGrise::Task.new(id: "one", title: "First")
+    ])
+    agent = EminenceGrise::Agent.new { |_task| raise "boom" }
+
+    expect do
+      described_class.new(queue: queue, agent: agent, logger: logger).run
+    end.to raise_error(RuntimeError, "boom")
+    expect(logger).to have_received(:error).with(/task failed id=one/)
   end
 
   it "waits until retry_at and retries the same task" do
@@ -91,6 +128,48 @@ RSpec.describe EminenceGrise::Runner do
     expect(attempts).to eq(2)
     expect(sleeps).to eq([5])
     expect(queue).to be_empty
+  end
+
+  it "logs retry waits with warn" do
+    retry_at = Time.iso8601("2026-05-02T15:00:05-04:00")
+    now = Time.iso8601("2026-05-02T15:00:00-04:00")
+    logger = instance_double(Logger)
+    allow(logger).to receive(:info)
+    allow(logger).to receive(:warn)
+    allow(logger).to receive(:error)
+    queue = EminenceGrise::MemoryQueue.new([
+      EminenceGrise::Task.new(id: "one", title: "First")
+    ])
+    attempts = 0
+    agent = EminenceGrise::Agent.new do |_task|
+      attempts += 1
+      raise RetryAtError, retry_at if attempts == 1
+    end
+
+    described_class.new(
+      queue: queue,
+      agent: agent,
+      logger: logger,
+      sleeper: ->(_seconds) {},
+      clock: -> { now }
+    ).run
+
+    expect(logger).to have_received(:warn).with(/task retry waiting id=one/)
+  end
+
+  it "supports puts-only loggers" do
+    messages = []
+    logger = Object.new
+    logger.define_singleton_method(:puts) { |message| messages << message }
+    queue = EminenceGrise::MemoryQueue.new([
+      EminenceGrise::Task.new(id: "one", title: "First")
+    ])
+    agent = EminenceGrise::Agent.new { |_task| }
+
+    described_class.new(queue: queue, agent: agent, logger: logger).run
+
+    expect(messages).to include(/task started id=one/)
+    expect(messages).to include(/task finished id=one/)
   end
 
   it "raises retry_at errors when waiting is disabled" do

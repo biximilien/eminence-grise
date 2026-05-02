@@ -39,5 +39,5 @@ queue = EminenceGrise::MemoryQueue.new([
   EminenceGrise::Task.new(id: "feature", title: "persistent queues")
 ])
 
-runner = EminenceGrise::Runner.new(queue: queue, agent: planner, logger: $stdout)
+runner = EminenceGrise::Runner.new(queue: queue, agent: planner, logger: EminenceGrise::Logging.console)
 runner.run

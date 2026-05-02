@@ -28,6 +28,7 @@ The first version is intentionally small:
 - `EminenceGrise::MemoryQueue` provides a simple FIFO task source.
 - `EminenceGrise::Agent` wraps the callable that performs the work.
 - `EminenceGrise::CodexAgent` runs a task through `codex exec`.
+- `EminenceGrise::Logging` creates console, file, null, text, and JSON loggers.
 - `EminenceGrise::Runner` fetches tasks from the queue and asks the agent to process them sequentially.
 - `EminenceGrise::ProcessRunner` runs a loop script in the foreground or as a daemon.
 - `EminenceGrise::Daemon` provides low-level pidfile-backed process management.
@@ -97,6 +98,31 @@ Valid `AgentResult` statuses are `:complete`, `:split`, `:delegated`, and `:fail
 
 `RouterAgent` raises `RouterAgent::RoutingError` when a task has no route or when the selected agent has not been registered.
 
+## Logging
+
+Éminence Grise uses Ruby's standard `Logger`.
+
+```ruby
+logger = EminenceGrise::Logging.console
+logger = EminenceGrise::Logging.file(".eminence-grise/runner.log")
+logger = EminenceGrise::Logging.file(".eminence-grise/runner.jsonl", format: :json)
+logger = EminenceGrise::Logging.null
+```
+
+Pass a logger to `Runner`:
+
+```ruby
+runner = EminenceGrise::Runner.new(
+  queue: queue,
+  agent: agent,
+  logger: EminenceGrise::Logging.console
+)
+```
+
+Foreground process runs default to console logging. Daemon runs default to `.eminence-grise/runner.log`.
+
+Daemon stdout and stderr are still captured separately in `.eminence-grise/runner.out.log` and `.eminence-grise/runner.err.log`. Those files capture process output; the framework log is where runner, retry, routing, and daemon lifecycle events belong.
+
 ## Process API
 
 Use `ProcessRunner` when you want Éminence Grise to run a loop script for you:
@@ -144,6 +170,7 @@ ruby -I./lib exe/eminence-grise run examples/codex_loop.rb --background
 By default, background runs write:
 
 - pid: `.eminence-grise/runner.pid`
+- log: `.eminence-grise/runner.log`
 - stdout: `.eminence-grise/runner.out.log`
 - stderr: `.eminence-grise/runner.err.log`
 
@@ -152,6 +179,12 @@ Check or stop a background process:
 ```sh
 ruby -I./lib exe/eminence-grise status
 ruby -I./lib exe/eminence-grise stop
+```
+
+Configure daemon logs:
+
+```sh
+ruby -I./lib exe/eminence-grise run examples/codex_loop.rb --background --log .eminence-grise/runner.jsonl --log-format json --log-level info
 ```
 
 ## Retry Times

@@ -7,6 +7,7 @@ require_relative "process_runner"
 module EminenceGrise
   class CLI
     DEFAULT_PIDFILE = ProcessRunner::DEFAULT_PIDFILE
+    DEFAULT_LOG = ProcessRunner::DEFAULT_LOG
     DEFAULT_STDOUT = ProcessRunner::DEFAULT_STDOUT
     DEFAULT_STDERR = ProcessRunner::DEFAULT_STDERR
 
@@ -38,6 +39,9 @@ module EminenceGrise
       options = {
         background: false,
         pidfile: DEFAULT_PIDFILE,
+        log_path: DEFAULT_LOG,
+        log_format: :text,
+        log_level: "info",
         stdout: DEFAULT_STDOUT,
         stderr: DEFAULT_STDERR,
         ruby: nil,
@@ -47,6 +51,9 @@ module EminenceGrise
         opts.banner = "Usage: eminence-grise run SCRIPT [options]"
         opts.on("--background", "Run SCRIPT as a detached background process") { options[:background] = true }
         opts.on("--pidfile PATH", "Write the background process pid to PATH") { |value| options[:pidfile] = value }
+        opts.on("--log PATH", "Write framework logs to PATH") { |value| options[:log_path] = value }
+        opts.on("--log-format FORMAT", "Use text or json framework logs") { |value| options[:log_format] = value.to_sym }
+        opts.on("--log-level LEVEL", "Use a log level such as debug, info, warn, or error") { |value| options[:log_level] = value }
         opts.on("--stdout PATH", "Redirect background stdout to PATH") { |value| options[:stdout] = value }
         opts.on("--stderr PATH", "Redirect background stderr to PATH") { |value| options[:stderr] = value }
         opts.on("--ruby PATH", "Ruby executable to use for background runs") { |value| options[:ruby] = value }
@@ -111,6 +118,9 @@ module EminenceGrise
       kwargs = {
         script: script,
         pidfile: options.fetch(:pidfile, DEFAULT_PIDFILE),
+        log_path: options.fetch(:log_path, DEFAULT_LOG),
+        log_format: options.fetch(:log_format, :text),
+        log_level: options.fetch(:log_level, "info"),
         stdout: options.fetch(:stdout, DEFAULT_STDOUT),
         stderr: options.fetch(:stderr, DEFAULT_STDERR)
       }

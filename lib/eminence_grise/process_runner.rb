@@ -3,20 +3,26 @@
 require "rbconfig"
 
 require_relative "daemon"
+require_relative "logging"
 
 module EminenceGrise
   class ProcessRunner
     DEFAULT_PIDFILE = ".eminence-grise/runner.pid"
+    DEFAULT_LOG = ".eminence-grise/runner.log"
     DEFAULT_STDOUT = ".eminence-grise/runner.out.log"
     DEFAULT_STDERR = ".eminence-grise/runner.err.log"
 
-    attr_reader :script, :pidfile, :stdout, :stderr, :working_directory
+    attr_reader :script, :pidfile, :log_path, :stdout, :stderr, :working_directory
 
     def initialize(
       script:,
       ruby: RbConfig.ruby,
       require_path: :auto,
       pidfile: DEFAULT_PIDFILE,
+      log_path: DEFAULT_LOG,
+      log_format: :text,
+      log_level: Logger::INFO,
+      logger: nil,
       stdout: DEFAULT_STDOUT,
       stderr: DEFAULT_STDERR,
       working_directory: Dir.pwd,
@@ -26,6 +32,10 @@ module EminenceGrise
       @script = script
       @ruby = ruby
       @pidfile = pidfile
+      @log_path = log_path
+      @log_format = log_format
+      @log_level = log_level
+      @logger = logger
       @stdout = stdout
       @stderr = stderr
       @working_directory = working_directory
@@ -39,14 +49,22 @@ module EminenceGrise
 
       with_working_directory do
         add_require_path
+        foreground_logger.info("foreground run started script=#{@script}")
         @loader.call(@script)
+        foreground_logger.info("foreground run finished script=#{@script}")
+      rescue StandardError => error
+        foreground_logger.error("foreground run failed script=#{@script} error=#{error.message.inspect}")
+        raise
       end
     end
 
     def start_daemon
       require_script!
 
-      daemon.start
+      daemon_logger.info("daemon start requested script=#{@script} log=#{@log_path}")
+      pid = daemon.start
+      daemon_logger.info("daemon started script=#{@script} pid=#{pid}")
+      pid
     end
 
     def stop_daemon
@@ -92,6 +110,14 @@ module EminenceGrise
 
     def load_script(script)
       load script
+    end
+
+    def foreground_logger
+      @foreground_logger ||= @logger ? Logging.coerce(@logger) : Logging.console(level: @log_level, format: @log_format)
+    end
+
+    def daemon_logger
+      @daemon_logger ||= @logger ? Logging.coerce(@logger) : Logging.file(@log_path, level: @log_level, format: @log_format)
     end
 
     def require_script!

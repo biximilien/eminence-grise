@@ -20,5 +20,5 @@ agent = EminenceGrise::Agent.new do |task|
   puts "Plan: #{task.description}"
 end
 
-runner = EminenceGrise::Runner.new(queue: queue, agent: agent, logger: $stdout)
+runner = EminenceGrise::Runner.new(queue: queue, agent: agent, logger: EminenceGrise::Logging.console)
 runner.run

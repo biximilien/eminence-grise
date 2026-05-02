@@ -2,13 +2,14 @@
 
 require "time"
 require_relative "agent_result"
+require_relative "logging"
 
 module EminenceGrise
   class Runner
     class ResultHandler
       def initialize(queue:, logger: nil)
         @queue = queue
-        @logger = logger
+        @logger = Logging.coerce(logger)
       end
 
       def call(result)
@@ -18,7 +19,7 @@ module EminenceGrise
 
         result.tasks.each do |task|
           @queue.push(task)
-          @logger&.puts("enqueued #{task.id}: #{task.title}")
+          @logger.info("task enqueued id=#{task.id} title=#{task.title.inspect}")
         end
       end
 
@@ -34,7 +35,7 @@ module EminenceGrise
     def initialize(queue:, agent:, logger: nil, wait_on_retry_at: true, sleeper: Kernel.method(:sleep), clock: Time.method(:now))
       @queue = queue
       @agent = agent
-      @logger = logger
+      @logger = Logging.coerce(logger)
       @wait_on_retry_at = wait_on_retry_at
       @sleeper = sleeper
       @clock = clock
@@ -58,17 +59,20 @@ module EminenceGrise
 
     def run_task(task)
       loop do
-        @logger&.puts("starting #{task.id}: #{task.title}")
+        @logger.info("task started id=#{task.id} title=#{task.title.inspect}")
         result = @agent.call(task)
         @result_handler.call(result)
-        @logger&.puts("finished #{task.id}: #{task.title}")
+        @logger.info("task finished id=#{task.id} title=#{task.title.inspect}")
         return
       rescue StandardError => error
-        raise unless wait_for_retry?(error)
+        unless wait_for_retry?(error)
+          @logger.error("task failed id=#{task.id} title=#{task.title.inspect} error=#{error.message.inspect}")
+          raise
+        end
 
         wait_until = error.retry_at
         seconds = [wait_until - @clock.call, 0].max
-        @logger&.puts("waiting until #{wait_until.iso8601} before retrying #{task.id}: #{task.title}")
+        @logger.warn("task retry waiting id=#{task.id} title=#{task.title.inspect} retry_at=#{wait_until.iso8601}")
         @sleeper.call(seconds)
       end
     end
