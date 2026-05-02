@@ -108,7 +108,16 @@ agent = EminenceGrise::OpenCodeAgent.new(working_directory: Dir.pwd)
 
 `CodexAgent` runs `codex exec`. `ClaudeCodeAgent` runs `claude -p`. `OpenCodeAgent` runs `opencode run`.
 
-CLI-agent output is captured in the returned result by default. Use `stream: true` when you want stdout and stderr to be shown while the external tool runs. Some CLIs can be noisy on stderr; pass `stderr: nil` to keep stderr captured for failures without streaming it live:
+CLI-agent output is captured in the returned result by default. The runner treats plain return values, including CLI results, as completed work and does not print them. Use `stream: true` when you want stdout and stderr to be shown while the external tool runs:
+
+```ruby
+agent = EminenceGrise::CodexAgent.new(
+  working_directory: Dir.pwd,
+  stream: true
+)
+```
+
+Codex and similar CLIs often write progress to stderr, so foreground examples stream stderr too. If the CLI is noisy, silence live stderr while still capturing it for failures:
 
 ```ruby
 agent = EminenceGrise::CodexAgent.new(
@@ -117,6 +126,21 @@ agent = EminenceGrise::CodexAgent.new(
   stderr: nil
 )
 ```
+
+You can also redirect child-process output to files by passing IO objects:
+
+```ruby
+FileUtils.mkdir_p(".eminence-grise")
+
+File.open(".eminence-grise/codex.out.log", "a") do |stdout|
+  File.open(".eminence-grise/codex.err.log", "a") do |stderr|
+    agent = EminenceGrise::CodexAgent.new(working_directory: Dir.pwd, stream: true, stdout: stdout, stderr: stderr)
+    EminenceGrise::Runner.new(queue: queue, agent: agent, logger: EminenceGrise::Logging.console).run
+  end
+end
+```
+
+`CliAgent` uses `Open3.capture3` by default and `Open3.popen3` when streaming. In both modes Ruby waits for the child process to finish before `runner.run` continues. If a provider CLI chooses to spawn its own detached background work, that is provider behavior outside the Ruby child process contract.
 
 Claude Code can be configured with the options users normally reach for:
 

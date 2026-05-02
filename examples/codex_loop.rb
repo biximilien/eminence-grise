@@ -17,8 +17,7 @@ agent = EminenceGrise::CodexAgent.new(
   working_directory: Dir.pwd,
   sandbox: "read-only",
   approval_policy: "never",
-  stream: true,
-  stderr: nil
+  stream: true
 )
 
 runner = EminenceGrise::Runner.new(

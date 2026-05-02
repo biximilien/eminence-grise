@@ -16,8 +16,7 @@ queue = EminenceGrise::MemoryQueue.new([
 agent = EminenceGrise::ClaudeCodeAgent.new(
   working_directory: Dir.pwd,
   output_format: "text",
-  stream: true,
-  stderr: nil
+  stream: true
 )
 
 runner = EminenceGrise::Runner.new(
