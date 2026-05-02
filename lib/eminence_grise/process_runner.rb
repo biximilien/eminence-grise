@@ -15,7 +15,7 @@ module EminenceGrise
     def initialize(
       script:,
       ruby: RbConfig.ruby,
-      require_path: default_require_path,
+      require_path: :auto,
       pidfile: DEFAULT_PIDFILE,
       stdout: DEFAULT_STDOUT,
       stderr: DEFAULT_STDERR,
@@ -25,11 +25,11 @@ module EminenceGrise
     )
       @script = script
       @ruby = ruby
-      @require_path = require_path
       @pidfile = pidfile
       @stdout = stdout
       @stderr = stderr
       @working_directory = working_directory
+      @require_path = resolve_require_path(require_path)
       @daemon_class = daemon_class
       @loader = loader || method(:load_script)
     end
@@ -76,7 +76,7 @@ module EminenceGrise
     def command
       [@ruby].tap do |args|
         args.push("-I", @require_path) if @require_path
-        args << @script
+        args << @script if @script
       end
     end
 
@@ -99,7 +99,13 @@ module EminenceGrise
     end
 
     def default_require_path
-      File.directory?("lib") ? "./lib" : nil
+      File.directory?(File.join(@working_directory, "lib")) ? "./lib" : nil
+    end
+
+    def resolve_require_path(require_path)
+      return default_require_path if require_path == :auto
+
+      require_path
     end
   end
 end

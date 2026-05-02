@@ -46,4 +46,30 @@ RSpec.describe "agent orchestration" do
     expect(router.call(docs_task)).to eq("docs: README")
     expect(router.call(code_task)).to eq("code: Runner")
   end
+
+  it "rejects invalid agent result statuses" do
+    expect do
+      EminenceGrise::AgentResult.new(status: :paused)
+    end.to raise_error(ArgumentError, /unknown agent result status/)
+  end
+
+  it "raises a routing error when no route is available" do
+    registry = EminenceGrise::AgentRegistry.new
+    router = EminenceGrise::RouterAgent.new(registry: registry) { |_task| nil }
+    task = EminenceGrise::Task.new(id: "docs", title: "README")
+
+    expect do
+      router.call(task)
+    end.to raise_error(EminenceGrise::RouterAgent::RoutingError, /no route for task docs: README/)
+  end
+
+  it "raises a routing error when the route is not registered" do
+    registry = EminenceGrise::AgentRegistry.new
+    router = EminenceGrise::RouterAgent.new(registry: registry) { |_task| :missing }
+    task = EminenceGrise::Task.new(id: "docs", title: "README")
+
+    expect do
+      router.call(task)
+    end.to raise_error(EminenceGrise::RouterAgent::RoutingError, /unknown route :missing for task docs: README/)
+  end
 end

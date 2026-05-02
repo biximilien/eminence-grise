@@ -4,12 +4,13 @@ require "fileutils"
 
 module EminenceGrise
   class Daemon
-    attr_reader :command, :pidfile, :working_directory, :stdout, :stderr
+    attr_reader :command, :pidfile, :working_directory, :stdin, :stdout, :stderr
 
     def initialize(
       command:,
       pidfile:,
       working_directory: Dir.pwd,
+      stdin: File::NULL,
       stdout: File::NULL,
       stderr: stdout,
       spawner: nil,
@@ -20,6 +21,7 @@ module EminenceGrise
       @command = Array(command)
       @pidfile = pidfile
       @working_directory = working_directory
+      @stdin = stdin
       @stdout = stdout
       @stderr = stderr
       @spawner = spawner || Process.method(:spawn)
@@ -34,7 +36,7 @@ module EminenceGrise
 
       prepare_files
 
-      child_pid = @spawner.call(*@command, chdir: @working_directory, out: @stdout, err: @stderr)
+      child_pid = @spawner.call(*@command, chdir: @working_directory, in: @stdin, out: @stdout, err: @stderr)
       @detacher.call(child_pid)
       File.write(@pidfile, child_pid.to_s)
       child_pid
@@ -70,7 +72,7 @@ module EminenceGrise
 
     def prepare_files
       FileUtils.mkdir_p(File.dirname(@pidfile))
-      [@stdout, @stderr].uniq.each do |path|
+      [@stdin, @stdout, @stderr].uniq.each do |path|
         next if path == File::NULL
 
         FileUtils.mkdir_p(File.dirname(path))

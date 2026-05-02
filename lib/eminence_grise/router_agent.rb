@@ -4,6 +4,8 @@ require_relative "agent_registry"
 
 module EminenceGrise
   class RouterAgent
+    class RoutingError < StandardError; end
+
     def initialize(registry:, default: nil, &router)
       raise ArgumentError, "router agent requires a router block or default agent" unless router || default
 
@@ -14,6 +16,9 @@ module EminenceGrise
 
     def call(task)
       agent_name = route(task)
+      raise RoutingError, "no route for task #{task.id}: #{task.title}" unless agent_name
+      raise RoutingError, "unknown route #{agent_name.inspect} for task #{task.id}: #{task.title}" unless @registry.key?(agent_name)
+
       agent = @registry.fetch(agent_name)
       agent.call(task)
     end

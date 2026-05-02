@@ -2,6 +2,8 @@
 
 module EminenceGrise
   class AgentResult
+    VALID_STATUSES = [:complete, :delegated, :failed, :split].freeze
+
     attr_reader :status, :output, :tasks, :metadata
 
     def self.complete(output = nil, tasks: [], metadata: {})
@@ -22,6 +24,8 @@ module EminenceGrise
     end
 
     def initialize(status:, output: nil, tasks: [], metadata: {})
+      raise ArgumentError, "unknown agent result status: #{status.inspect}" unless VALID_STATUSES.include?(status)
+
       @status = status
       @output = output
       @tasks = Array(tasks).freeze

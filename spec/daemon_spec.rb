@@ -34,11 +34,43 @@ RSpec.describe EminenceGrise::Daemon do
           [
             "ruby",
             "worker.rb",
-            { chdir: dir, out: File.join(dir, "logs", "worker.out.log"), err: File.join(dir, "logs", "worker.err.log") }
+            {
+              chdir: dir,
+              in: File::NULL,
+              out: File.join(dir, "logs", "worker.out.log"),
+              err: File.join(dir, "logs", "worker.err.log")
+            }
           ]
         ],
         [:detach, 123]
       ])
+    end
+  end
+
+  it "passes custom stdin to the spawned process" do
+    Dir.mktmpdir do |dir|
+      calls = []
+      spawner = lambda do |*args|
+        calls << args
+        123
+      end
+      process_checker = lambda do |_signal, _pid|
+        raise Errno::ESRCH
+      end
+      stdin = File.join(dir, "input.log")
+
+      daemon = described_class.new(
+        command: ["ruby", "worker.rb"],
+        pidfile: File.join(dir, "worker.pid"),
+        stdin: stdin,
+        spawner: spawner,
+        detacher: ->(_pid) {},
+        process_checker: process_checker
+      )
+
+      daemon.start
+
+      expect(calls.first.last).to include(in: stdin)
     end
   end
 

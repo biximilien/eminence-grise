@@ -59,6 +59,48 @@ RSpec.describe EminenceGrise::ProcessRunner do
     )
   end
 
+  it "auto-detects the require path from the working directory" do
+    Dir.mktmpdir do |dir|
+      Dir.mkdir(File.join(dir, "lib"))
+      runner = described_class.new(
+        script: "worker.rb",
+        ruby: "ruby",
+        working_directory: dir,
+        daemon_class: FakeDaemon
+      )
+
+      runner.start_daemon
+
+      expect(runner.daemon.options[:command]).to eq(["ruby", "-I", "./lib", "worker.rb"])
+    end
+  end
+
+  it "omits the require path when it is disabled" do
+    runner = described_class.new(
+      script: "worker.rb",
+      ruby: "ruby",
+      require_path: nil,
+      daemon_class: FakeDaemon
+    )
+
+    runner.start_daemon
+
+    expect(runner.daemon.options[:command]).to eq(["ruby", "worker.rb"])
+  end
+
+  it "preserves an explicit require path" do
+    runner = described_class.new(
+      script: "worker.rb",
+      ruby: "ruby",
+      require_path: "custom/lib",
+      daemon_class: FakeDaemon
+    )
+
+    runner.start_daemon
+
+    expect(runner.daemon.options[:command]).to eq(["ruby", "-I", "custom/lib", "worker.rb"])
+  end
+
   it "exposes daemon status operations" do
     runner = described_class.new(script: nil, daemon_class: FakeDaemon)
 
