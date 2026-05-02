@@ -64,14 +64,17 @@ module EminenceGrise
       script = @argv.shift
       return fail_with(parser.to_s) unless script
 
+      runner = process_runner(script, options)
       if options[:background]
-        pid = process_runner(script, options).start_daemon
+        pid = runner.start_daemon
         @stdout.puts "started pid #{pid}"
         0
       else
-        process_runner(script, options).run_foreground
+        runner.run_foreground
         0
       end
+    ensure
+      runner&.close
     end
 
     def stop
@@ -94,6 +97,8 @@ module EminenceGrise
         @stderr.puts "no pidfile found at #{options[:pidfile]}"
         1
       end
+    ensure
+      runner&.close
     end
 
     def status
@@ -112,6 +117,8 @@ module EminenceGrise
         @stdout.puts "not running"
         1
       end
+    ensure
+      runner&.close
     end
 
     def process_runner(script, options)

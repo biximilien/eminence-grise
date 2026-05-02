@@ -20,6 +20,8 @@ Power should come from composition rather than setup: write a queue, choose an a
 
 CLI-backed agents assume their tools are already installed, authenticated, and configured. The framework passes task instructions to tools like Codex CLI, Claude Code, and OpenCode; it does not try to own their configuration.
 
+Use `require "eminence_grise"` as the stable public entrypoint. Direct requires such as `require "eminence_grise/codex_agent"` remain supported for compatibility.
+
 ## Shape
 
 The first version is intentionally small:
@@ -224,7 +226,7 @@ ruby -I./lib exe/eminence-grise run examples/codex_loop.rb --background --log .e
 
 ## Retry Times
 
-When `CodexAgent` sees a failed `codex exec` response that includes a retry or resume time, it exposes that time on the raised error. `Runner` waits until that time and retries the same task by default.
+CLI-backed agents share retry-time extraction through `CliAgent`. When Codex CLI, Claude Code, or OpenCode output includes a retry or resume time, the raised execution error exposes that time as `retry_at`. `Runner` waits until that time and retries the same task by default.
 
 ```ruby
 runner = EminenceGrise::Runner.new(
@@ -238,7 +240,7 @@ Set `wait_on_retry_at: false` if you want retry-time errors to bubble up immedia
 
 ## Failure Behavior
 
-`CodexAgent` raises `CodexAgent::ExecutionError` when `codex exec` fails. If the error output includes a retry or resume time, `Runner` waits until then and retries the same task by default.
+CLI adapters raise provider-specific execution errors when their command fails: `CodexAgent::ExecutionError`, `ClaudeCodeAgent::ExecutionError`, and `OpenCodeAgent::ExecutionError`. Each wraps the shared CLI result surface: `stdout`, `stderr`, `status`, and `retry_at`.
 
 `AgentResult.failed(...)` causes the runner to raise. Routing failures raise `RouterAgent::RoutingError`.
 
