@@ -20,7 +20,7 @@ Power should come from composition rather than setup: write a queue, choose an a
 
 CLI-backed agents assume their tools are already installed, authenticated, and configured. The framework passes task instructions to tools like Codex CLI, Claude Code, and OpenCode; it does not try to own their configuration.
 
-Use `require "eminence_grise"` as the stable public entrypoint. Direct requires such as `require "eminence_grise/codex_agent"` remain supported for compatibility.
+Use `require "eminence_grise"` as the preferred stable public entrypoint. If you need sub-file loading, use canonical paths such as `require "eminence_grise/agents/codex_agent"` or `require "eminence_grise/runner/result_handler"`.
 
 ## Shape
 

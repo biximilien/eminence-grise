@@ -30,27 +30,27 @@ RSpec.describe "require compatibility" do
     expect(status).to be_success, stderr
   end
 
-  it "keeps the codex agent direct require path" do
+  it "supports the canonical codex agent direct require path" do
     _stdout, stderr, status = ruby_requires(<<~RUBY)
-      require "eminence_grise/codex_agent"
+      require "eminence_grise/agents/codex_agent"
       exit(EminenceGrise::CodexAgent && EminenceGrise::CliAgent ? 0 : 1)
     RUBY
 
     expect(status).to be_success, stderr
   end
 
-  it "keeps the agent result direct require path" do
+  it "supports the canonical agent result direct require path" do
     _stdout, stderr, status = ruby_requires(<<~RUBY)
-      require "eminence_grise/agent_result"
+      require "eminence_grise/agents/result"
       exit(EminenceGrise::AgentResult ? 0 : 1)
     RUBY
 
     expect(status).to be_success, stderr
   end
 
-  it "keeps the result handler direct require path" do
+  it "supports the canonical result handler direct require path" do
     _stdout, stderr, status = ruby_requires(<<~RUBY)
-      require "eminence_grise/result_handler"
+      require "eminence_grise/runner/result_handler"
       exit(EminenceGrise::ResultHandler ? 0 : 1)
     RUBY
 
