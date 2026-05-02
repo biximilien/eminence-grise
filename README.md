@@ -51,6 +51,33 @@ ruby -I./lib examples/codex_loop.rb
 rake spec
 ```
 
+## Running A Loop
+
+Run a loop script in the foreground:
+
+```sh
+ruby -I./lib exe/eminence-grise run examples/basic_loop.rb
+```
+
+Run a loop script in the background:
+
+```sh
+ruby -I./lib exe/eminence-grise run examples/codex_loop.rb --background
+```
+
+By default, background runs write:
+
+- pid: `.eminence-grise/runner.pid`
+- stdout: `.eminence-grise/runner.out.log`
+- stderr: `.eminence-grise/runner.err.log`
+
+Check or stop a background process:
+
+```sh
+ruby -I./lib exe/eminence-grise status
+ruby -I./lib exe/eminence-grise stop
+```
+
 ## Direction
 
 The framework should stay easy to reason about while growing toward real coding-agent workflows. Likely next pieces:
