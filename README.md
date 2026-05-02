@@ -287,6 +287,7 @@ process.stop_daemon
 bundle install
 ruby -I./lib examples/basic_loop.rb
 ruby -I./lib examples/orchestration_loop.rb
+ruby -I./lib examples/development_workflow.rb
 rake spec
 ```
 
@@ -318,6 +319,12 @@ New-Item -ItemType Directory -Force .eminence-grise/production_queue/queued
 The example claims files from `queued/`, moves active work through `processing/`, archives successful tasks in `done/`, and writes failed tasks plus error sidecars in `failed/`. Stop it with `Ctrl+C`, `TERM`, or a `.eminence-grise/production_queue/stop` file.
 
 For local smoke tests, set `MAX_TASKS=1` to process one queued task and exit.
+
+The development workflow recipe shows how to encode branch, ticket, conventional commit, and PR expectations as task metadata and prompt instructions without adding git policy to the framework:
+
+```sh
+ruby -I./lib examples/development_workflow.rb
+```
 
 ## Running A Loop
 
