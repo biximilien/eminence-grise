@@ -159,6 +159,53 @@ Use `output_format: "json"` if you want Claude Code to emit JSON. Éminence Gris
 
 Examples are available in `examples/codex_loop.rb`, `examples/claude_code_loop.rb`, and `examples/opencode_loop.rb`.
 
+## Rails Jobs
+
+Rails and Sidekiq integrations are optional and dependency-free. Include the framework's job module alongside the host framework module, configure an agent, and pass one task payload per job. The job framework owns persistence, scheduling, retries, concurrency, and dead-letter behavior.
+
+ActiveJob:
+
+```ruby
+class AgentTaskJob < ApplicationJob
+  include EminenceGrise::ActiveJob
+
+  queue_as :default
+
+  eminence_grise_agent do
+    EminenceGrise::CodexAgent.new(
+      working_directory: Rails.root.to_s,
+      output_last_message: Rails.root.join("tmp/eminence-grise/last-message.txt").to_s
+    )
+  end
+
+  eminence_grise_logger { Rails.logger }
+end
+
+AgentTaskJob.perform_later(
+  "id" => "task-123",
+  "title" => "Fix failing specs",
+  "description" => "Run the test suite and fix failures.",
+  "metadata" => { "source" => "admin" }
+)
+```
+
+Sidekiq:
+
+```ruby
+class AgentTaskWorker
+  include Sidekiq::Job
+  include EminenceGrise::Sidekiq
+
+  eminence_grise_agent do
+    EminenceGrise::CodexAgent.new(working_directory: Rails.root.to_s)
+  end
+
+  eminence_grise_logger { Rails.logger }
+end
+```
+
+Job integrations default to `eminence_grise_wait_on_retry_at false` so workers do not sleep while provider limits reset. Set `eminence_grise_wait_on_retry_at true` if you explicitly want the worker to wait inside the job.
+
 ## Orchestration
 
 Agents can return `AgentResult` objects to create more work. The runner appends generated tasks to the queue and continues processing sequentially.

@@ -20,7 +20,9 @@ RSpec.describe "require compatibility" do
         EminenceGrise::AgentRegistry,
         EminenceGrise::AgentResult,
         EminenceGrise::RouterAgent,
-        EminenceGrise::ResultHandler
+        EminenceGrise::ResultHandler,
+        EminenceGrise::ActiveJob,
+        EminenceGrise::Sidekiq
       ]
       exit(constants.all? ? 0 : 1)
     RUBY
@@ -52,6 +54,16 @@ RSpec.describe "require compatibility" do
     _stdout, stderr, status = ruby_requires(<<~RUBY)
       require "eminence_grise/runner/result_handler"
       exit(EminenceGrise::ResultHandler ? 0 : 1)
+    RUBY
+
+    expect(status).to be_success, stderr
+  end
+
+  it "supports the canonical job integration direct require paths" do
+    _stdout, stderr, status = ruby_requires(<<~RUBY)
+      require "eminence_grise/jobs/active_job"
+      require "eminence_grise/jobs/sidekiq"
+      exit(EminenceGrise::ActiveJob && EminenceGrise::Sidekiq ? 0 : 1)
     RUBY
 
     expect(status).to be_success, stderr
