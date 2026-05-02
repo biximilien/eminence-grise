@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "eminence_grise/agent"
+require_relative "eminence_grise/codex_agent"
 require_relative "eminence_grise/memory_queue"
 require_relative "eminence_grise/runner"
 require_relative "eminence_grise/task"
