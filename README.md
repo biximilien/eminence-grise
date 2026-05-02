@@ -18,7 +18,7 @@ Power should come from composition rather than setup: write a queue, choose an a
 
 `ProcessRunner` uses `require_path: :auto` by default. In that mode, it adds `./lib` to Ruby's load path only when `working_directory/lib` exists. Set `require_path: nil` to disable load-path injection, or pass a string to use an explicit path.
 
-`CodexAgent` assumes Codex CLI is already installed, authenticated, and configured. The framework passes task instructions to `codex exec`; it does not try to own Codex configuration.
+CLI-backed agents assume their tools are already installed, authenticated, and configured. The framework passes task instructions to tools like Codex CLI, Claude Code, and OpenCode; it does not try to own their configuration.
 
 ## Shape
 
@@ -27,7 +27,10 @@ The first version is intentionally small:
 - `EminenceGrise::Task` describes a unit of work.
 - `EminenceGrise::MemoryQueue` provides a simple FIFO task source.
 - `EminenceGrise::Agent` wraps the callable that performs the work.
-- `EminenceGrise::CodexAgent` runs a task through `codex exec`.
+- `EminenceGrise::CliAgent` provides shared behavior for CLI-backed coding agents.
+- `EminenceGrise::CodexAgent` runs a task through Codex CLI.
+- `EminenceGrise::ClaudeCodeAgent` runs a task through Claude Code.
+- `EminenceGrise::OpenCodeAgent` runs a task through OpenCode.
 - `EminenceGrise::Logging` creates console, file, null, text, and JSON loggers.
 - `EminenceGrise::Runner` fetches tasks from the queue and asks the agent to process them sequentially.
 - `EminenceGrise::ProcessRunner` runs a loop script in the foreground or as a daemon.
@@ -60,6 +63,20 @@ agent = EminenceGrise::CodexAgent.new(
 
 EminenceGrise::Runner.new(queue: queue, agent: agent, logger: $stdout).run
 ```
+
+## CLI Agents
+
+Éminence Grise can delegate tasks to external coding CLIs. These agents share the same task instruction format and return the same result shape.
+
+```ruby
+agent = EminenceGrise::CodexAgent.new(working_directory: Dir.pwd)
+agent = EminenceGrise::ClaudeCodeAgent.new(working_directory: Dir.pwd)
+agent = EminenceGrise::OpenCodeAgent.new(working_directory: Dir.pwd)
+```
+
+`CodexAgent` runs `codex exec`. `ClaudeCodeAgent` runs `claude -p`. `OpenCodeAgent` runs `opencode run`.
+
+Each CLI is expected to be installed and configured outside the framework. Examples are available in `examples/codex_loop.rb`, `examples/claude_code_loop.rb`, and `examples/opencode_loop.rb`.
 
 ## Orchestration
 
@@ -145,10 +162,12 @@ ruby -I./lib examples/orchestration_loop.rb
 rake spec
 ```
 
-The Codex example actually invokes Codex CLI against this repository:
+The external CLI examples actually invoke coding agents against this repository:
 
 ```sh
 ruby -I./lib examples/codex_loop.rb
+ruby -I./lib examples/claude_code_loop.rb
+ruby -I./lib examples/opencode_loop.rb
 ```
 
 ## Running A Loop

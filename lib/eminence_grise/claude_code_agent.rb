@@ -3,37 +3,38 @@
 require_relative "cli_agent"
 
 module EminenceGrise
-  class CodexAgent < CliAgent
+  class ClaudeCodeAgent < CliAgent
     Result = CliAgent::Result
 
     class ExecutionError < CliAgent::ExecutionError
       def initialize(result)
-        super(result, command_name: "codex exec")
+        super(result, command_name: "claude")
       end
     end
 
     def initialize(
-      command: "codex",
+      command: "claude",
       working_directory: Dir.pwd,
       model: nil,
-      sandbox: "workspace-write",
-      approval_policy: "never",
+      permission_mode: nil,
+      output_format: "text",
       extra_args: [],
       executor: nil
     )
       @model = model
-      @sandbox = sandbox
-      @approval_policy = approval_policy
+      @permission_mode = permission_mode
+      @output_format = output_format
       super(command: command, working_directory: working_directory, extra_args: extra_args, executor: executor)
     end
 
     private
 
-    def command_for(_instruction)
-      [command, "exec", "-C", working_directory, "--sandbox", @sandbox, "--ask-for-approval", @approval_policy].tap do |args|
+    def command_for(instruction)
+      [command, "-p", "--output-format", @output_format].tap do |args|
         args.push("--model", @model) if @model
+        args.push("--permission-mode", @permission_mode) if @permission_mode
         args.concat(extra_args)
-        args.push("-")
+        args.push(instruction)
       end
     end
 

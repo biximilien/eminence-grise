@@ -1,13 +1,13 @@
 # frozen_string_literal: true
 
 RSpec.describe EminenceGrise::CodexAgent do
-  Status = Struct.new(:success?)
+  CodexStatus = Struct.new(:success?)
 
   it "runs codex exec with the task instruction on stdin" do
     calls = []
     executor = lambda do |command, instruction|
       calls << [command, instruction]
-      ["done", "", Status.new(true)]
+      ["done", "", CodexStatus.new(true)]
     end
     task = EminenceGrise::Task.new(id: "one", title: "Add README", description: "Write useful docs.")
 
@@ -26,7 +26,7 @@ RSpec.describe EminenceGrise::CodexAgent do
     command = nil
     executor = lambda do |args, _instruction|
       command = args
-      ["", "", Status.new(true)]
+      ["", "", CodexStatus.new(true)]
     end
     task = EminenceGrise::Task.new(id: "one", title: "Add README")
 
@@ -38,7 +38,7 @@ RSpec.describe EminenceGrise::CodexAgent do
 
   it "raises when codex exec fails" do
     executor = lambda do |_command, _instruction|
-      ["", "nope", Status.new(false)]
+      ["", "nope", CodexStatus.new(false)]
     end
     task = EminenceGrise::Task.new(id: "one", title: "Add README")
 
@@ -47,10 +47,15 @@ RSpec.describe EminenceGrise::CodexAgent do
     end.to raise_error(EminenceGrise::CodexAgent::ExecutionError, /nope/)
   end
 
+  it "keeps result and error constants available" do
+    expect(described_class::Result).to eq(EminenceGrise::CliAgent::Result)
+    expect(described_class::ExecutionError).to be < EminenceGrise::CliAgent::ExecutionError
+  end
+
   it "extracts a retry time from Codex limit errors" do
     retry_at = Time.iso8601("2026-05-02T15:30:00-04:00")
     executor = lambda do |_command, _instruction|
-      ["", "usage limit reached; try again at 2026-05-02T15:30:00-04:00", Status.new(false)]
+      ["", "usage limit reached; try again at 2026-05-02T15:30:00-04:00", CodexStatus.new(false)]
     end
     task = EminenceGrise::Task.new(id: "one", title: "Add README")
 
