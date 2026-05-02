@@ -21,6 +21,7 @@ RSpec.describe "require compatibility" do
         EminenceGrise::AgentResult,
         EminenceGrise::RouterAgent,
         EminenceGrise::ResultHandler,
+        EminenceGrise::TaskPayload,
         EminenceGrise::ActiveJob,
         EminenceGrise::Sidekiq
       ]
@@ -64,6 +65,15 @@ RSpec.describe "require compatibility" do
       require "eminence_grise/jobs/active_job"
       require "eminence_grise/jobs/sidekiq"
       exit(EminenceGrise::ActiveJob && EminenceGrise::Sidekiq ? 0 : 1)
+    RUBY
+
+    expect(status).to be_success, stderr
+  end
+
+  it "supports the canonical task payload direct require path" do
+    _stdout, stderr, status = ruby_requires(<<~RUBY)
+      require "eminence_grise/task_payload"
+      exit(EminenceGrise::TaskPayload ? 0 : 1)
     RUBY
 
     expect(status).to be_success, stderr

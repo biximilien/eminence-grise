@@ -9,6 +9,7 @@ require "eminence_grise"
 $stdout.sync = true
 $stderr.sync = true
 
+# Example-local JSON queue. This is intentionally not a stable queue adapter yet.
 class JsonTaskQueue
   attr_reader :root, :queued_dir, :processing_dir, :done_dir, :failed_dir
 
@@ -58,16 +59,7 @@ class JsonTaskQueue
   end
 
   def task_from(path)
-    data = JSON.parse(File.read(path))
-    metadata = data.fetch("metadata", {})
-    raise TypeError, "metadata must be an object" unless metadata.is_a?(Hash)
-
-    EminenceGrise::Task.new(
-      id: data.fetch("id"),
-      title: data.fetch("title"),
-      description: data["description"],
-      metadata: metadata
-    )
+    EminenceGrise::TaskPayload.call(JSON.parse(File.read(path)))
   end
 
   def archive(path, directory)

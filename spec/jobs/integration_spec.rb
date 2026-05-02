@@ -152,6 +152,54 @@ RSpec.describe "job integrations" do
     expect(logger.messages).to include_message(:info, /task finished id=task-1/)
   end
 
+  it "inherits agent configuration from a parent job class" do
+    processed = []
+    agent = EminenceGrise::Agent.new { |task| processed << task.id }
+    parent_class = Class.new do
+      include EminenceGrise::ActiveJob
+      eminence_grise_agent { agent }
+    end
+    child_class = Class.new(parent_class)
+
+    child_class.new.perform("id" => "task-1", "title" => "Fix specs")
+
+    expect(processed).to eq(["task-1"])
+  end
+
+  it "inherits logger configuration from a parent job class" do
+    logger = FakeJobLogger.new
+    agent = EminenceGrise::Agent.new { |_task| }
+    parent_class = Class.new do
+      include EminenceGrise::ActiveJob
+      eminence_grise_agent { agent }
+      eminence_grise_logger { logger }
+    end
+    child_class = Class.new(parent_class)
+
+    child_class.new.perform("id" => "task-1", "title" => "Fix specs")
+
+    expect(logger.messages).to include_message(:info, /task started id=task-1/)
+  end
+
+  it "inherits retry configuration from a parent job class" do
+    retry_at = Time.now - 1
+    attempts = 0
+    agent = EminenceGrise::Agent.new do |_task|
+      attempts += 1
+      raise JobRetryAtError, retry_at if attempts == 1
+    end
+    parent_class = Class.new do
+      include EminenceGrise::ActiveJob
+      eminence_grise_agent { agent }
+      eminence_grise_wait_on_retry_at true
+    end
+    child_class = Class.new(parent_class)
+
+    child_class.new.perform("id" => "task-1", "title" => "Fix specs")
+
+    expect(attempts).to eq(2)
+  end
+
   def include_message(level, pattern)
     satisfy do |messages|
       messages.any? { |message_level, message| message_level == level && message.match?(pattern) }
