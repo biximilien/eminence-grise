@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+require "rbconfig"
+require "stringio"
+
 RSpec.describe EminenceGrise::CliAgent do
   CliAgentStatus = Struct.new(:success?)
 
@@ -8,6 +11,14 @@ RSpec.describe EminenceGrise::CliAgent do
 
     def command_for(instruction)
       [command, "run", instruction]
+    end
+  end
+
+  class StreamingCliAgent < EminenceGrise::CliAgent
+    private
+
+    def command_for(_instruction)
+      [command, *extra_args]
     end
   end
 
@@ -78,5 +89,28 @@ RSpec.describe EminenceGrise::CliAgent do
     TestCliAgent.new(command: "tool", working_directory: "/workspace", executor: executor).call(task)
 
     expect(seen_working_directory).to eq("/workspace")
+  end
+
+  it "can stream subprocess output while preserving the result" do
+    stdout = StringIO.new
+    stderr = StringIO.new
+    agent = StreamingCliAgent.new(
+      command: RbConfig.ruby,
+      extra_args: [
+        "-e",
+        "input = STDIN.read; STDOUT.write(input.lines.first); STDERR.write('visible error')"
+      ],
+      stream: true,
+      stdout: stdout,
+      stderr: stderr
+    )
+    task = EminenceGrise::Task.new(id: "one", title: "Add README")
+
+    result = agent.call(task)
+
+    expect(stdout.string).to match(/\ATask ID: one\r?\n\z/)
+    expect(stderr.string).to eq("visible error")
+    expect(result.stdout).to eq(stdout.string)
+    expect(result.stderr).to eq(stderr.string)
   end
 end

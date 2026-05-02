@@ -80,6 +80,12 @@ agent = EminenceGrise::OpenCodeAgent.new(working_directory: Dir.pwd)
 
 `CodexAgent` runs `codex exec`. `ClaudeCodeAgent` runs `claude -p`. `OpenCodeAgent` runs `opencode run`.
 
+CLI-agent output is captured in the returned result by default. Use `stream: true` when you want stdout and stderr to be shown while the external tool runs:
+
+```ruby
+agent = EminenceGrise::CodexAgent.new(working_directory: Dir.pwd, stream: true)
+```
+
 Claude Code can be configured with the options users normally reach for:
 
 ```ruby

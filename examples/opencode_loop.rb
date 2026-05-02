@@ -10,16 +10,10 @@ queue = EminenceGrise::MemoryQueue.new([
   )
 ])
 
-opencode = EminenceGrise::OpenCodeAgent.new(
-  working_directory: File.expand_path("..", __dir__)
+agent = EminenceGrise::OpenCodeAgent.new(
+  working_directory: File.expand_path("..", __dir__),
+  stream: true
 )
-
-agent = EminenceGrise::Agent.new do |task|
-  result = opencode.call(task)
-  puts result.stdout unless result.stdout.empty?
-  warn result.stderr unless result.stderr.empty?
-  result
-end
 
 runner = EminenceGrise::Runner.new(queue: queue, agent: agent, logger: EminenceGrise::Logging.console)
 runner.run

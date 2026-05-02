@@ -21,11 +21,13 @@ module EminenceGrise
       end
     end
 
-    def initialize(command:, working_directory: Dir.pwd, extra_args: [], executor: nil)
+    def initialize(command:, working_directory: Dir.pwd, extra_args: [], stream: false, stdout: $stdout, stderr: $stderr, executor: nil)
       @command = command
       @working_directory = working_directory
       @extra_args = extra_args
-      @executor = executor || method(:capture)
+      @stream_stdout = stream ? stdout : nil
+      @stream_stderr = stream ? stderr : nil
+      @executor = executor || (stream ? method(:capture_streaming) : method(:capture))
     end
 
     def call(task)
@@ -73,6 +75,37 @@ module EminenceGrise
 
     def capture(command, instruction, working_directory:)
       Open3.capture3(*command, stdin_data: instruction, chdir: working_directory)
+    end
+
+    def capture_streaming(command, instruction, working_directory:)
+      stdout_chunks = []
+      stderr_chunks = []
+      status = nil
+
+      Open3.popen3(*command, chdir: working_directory) do |stdin, stdout, stderr, wait_thread|
+        stdin.write(instruction)
+        stdin.close
+
+        readers = [
+          Thread.new { pump(stdout, @stream_stdout, stdout_chunks) },
+          Thread.new { pump(stderr, @stream_stderr, stderr_chunks) }
+        ]
+        readers.each(&:join)
+        status = wait_thread.value
+      end
+
+      [stdout_chunks.join, stderr_chunks.join, status]
+    end
+
+    def pump(input, output, chunks)
+      loop do
+        chunk = input.readpartial(4096)
+        chunks << chunk
+        output&.write(chunk)
+        output&.flush if output&.respond_to?(:flush)
+      end
+    rescue EOFError
+      nil
     end
 
     def retry_at_for(stdout, stderr)

@@ -19,12 +19,23 @@ module EminenceGrise
       permission_mode: nil,
       output_format: "text",
       extra_args: [],
+      stream: false,
+      stdout: $stdout,
+      stderr: $stderr,
       executor: nil
     )
       @model = model
       @permission_mode = permission_mode
       @output_format = output_format
-      super(command: command, working_directory: working_directory, extra_args: extra_args, executor: executor)
+      super(
+        command: command,
+        working_directory: working_directory,
+        extra_args: extra_args,
+        stream: stream,
+        stdout: stdout,
+        stderr: stderr,
+        executor: executor
+      )
     end
 
     private

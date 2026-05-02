@@ -19,12 +19,23 @@ module EminenceGrise
       sandbox: "workspace-write",
       approval_policy: "never",
       extra_args: [],
+      stream: false,
+      stdout: $stdout,
+      stderr: $stderr,
       executor: nil
     )
       @model = model
       @sandbox = sandbox
       @approval_policy = approval_policy
-      super(command: command, working_directory: working_directory, extra_args: extra_args, executor: executor)
+      super(
+        command: command,
+        working_directory: working_directory,
+        extra_args: extra_args,
+        stream: stream,
+        stdout: stdout,
+        stderr: stderr,
+        executor: executor
+      )
     end
 
     private

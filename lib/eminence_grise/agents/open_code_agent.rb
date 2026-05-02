@@ -19,12 +19,23 @@ module EminenceGrise
       agent: nil,
       output_format: nil,
       extra_args: [],
+      stream: false,
+      stdout: $stdout,
+      stderr: $stderr,
       executor: nil
     )
       @model = model
       @agent = agent
       @output_format = output_format
-      super(command: command, working_directory: working_directory, extra_args: extra_args, executor: executor)
+      super(
+        command: command,
+        working_directory: working_directory,
+        extra_args: extra_args,
+        stream: stream,
+        stdout: stdout,
+        stderr: stderr,
+        executor: executor
+      )
     end
 
     private
