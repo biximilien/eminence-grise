@@ -16,7 +16,7 @@ RSpec.describe EminenceGrise::CodexAgent do
     expect(result.stdout).to eq("done")
     expect(calls).to eq([
       [
-        ["codex", "exec", "-C", "/repo", "--sandbox", "workspace-write", "--ask-for-approval", "never", "-"],
+        ["codex", "--ask-for-approval", "never", "exec", "-C", "/repo", "--sandbox", "workspace-write", "-"],
         "Task ID: one\n\nTitle: Add README\n\nDescription:\nWrite useful docs.",
         "/repo"
       ]
@@ -34,6 +34,7 @@ RSpec.describe EminenceGrise::CodexAgent do
     described_class.new(model: "gpt-5.4", extra_args: ["--ephemeral"], executor: executor).call(task)
 
     expect(command).to include("--model", "gpt-5.4", "--ephemeral")
+    expect(command[1..2]).to eq(["--ask-for-approval", "never"])
     expect(command.last).to eq("-")
   end
 

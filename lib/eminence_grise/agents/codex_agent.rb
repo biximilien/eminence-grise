@@ -30,7 +30,9 @@ module EminenceGrise
     private
 
     def command_for(_instruction)
-      [command, "exec", "-C", working_directory, "--sandbox", @sandbox, "--ask-for-approval", @approval_policy].tap do |args|
+      [command].tap do |args|
+        args.push("--ask-for-approval", @approval_policy) if @approval_policy
+        args.push("exec", "-C", working_directory, "--sandbox", @sandbox)
         args.push("--model", @model) if @model
         args.concat(extra_args)
         args.push("-")

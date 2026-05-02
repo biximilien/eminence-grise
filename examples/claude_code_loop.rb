@@ -10,10 +10,17 @@ queue = EminenceGrise::MemoryQueue.new([
   )
 ])
 
-agent = EminenceGrise::ClaudeCodeAgent.new(
+claude = EminenceGrise::ClaudeCodeAgent.new(
   working_directory: File.expand_path("..", __dir__),
   output_format: "text"
 )
+
+agent = EminenceGrise::Agent.new do |task|
+  result = claude.call(task)
+  puts result.stdout unless result.stdout.empty?
+  warn result.stderr unless result.stderr.empty?
+  result
+end
 
 runner = EminenceGrise::Runner.new(queue: queue, agent: agent, logger: EminenceGrise::Logging.console)
 runner.run
