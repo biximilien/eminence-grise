@@ -253,6 +253,25 @@ ruby -I./lib examples/opencode_loop.rb
 
 Run these from the repository root; the examples use `Dir.pwd` as the agent working directory. They are intended as smoke tests and ask the external agent to print a short summary rather than modify files.
 
+There is also a long-running production-style example that waits for JSON task files:
+
+```sh
+ruby -I./lib examples/production_loop.rb
+```
+
+Enqueue work by writing a task file:
+
+```powershell
+New-Item -ItemType Directory -Force .eminence-grise/production_queue/queued
+@'
+{"id":"hello","title":"Say hello","description":"Print hello from the production loop."}
+'@ | Set-Content .eminence-grise/production_queue/queued/hello.json
+```
+
+The example claims files from `queued/`, moves active work through `processing/`, archives successful tasks in `done/`, and writes failed tasks plus error sidecars in `failed/`. Stop it with `Ctrl+C`, `TERM`, or a `.eminence-grise/production_queue/stop` file.
+
+For local smoke tests, set `MAX_TASKS=1` to process one queued task and exit.
+
 ## Running A Loop
 
 The executable is a thin wrapper around `EminenceGrise::ProcessRunner`.
@@ -267,6 +286,12 @@ Run a loop script in the background:
 
 ```sh
 ruby -I./lib exe/eminence-grise run examples/codex_loop.rb --background
+```
+
+Run the production-style polling loop in the background:
+
+```sh
+ruby -I./lib exe/eminence-grise run examples/production_loop.rb --background
 ```
 
 By default, background runs write:
