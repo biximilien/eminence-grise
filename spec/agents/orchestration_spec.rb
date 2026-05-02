@@ -37,10 +37,10 @@ RSpec.describe "agent orchestration" do
     registry.register(:coder, EminenceGrise::Agent.new { |task| "code: #{task.title}" })
 
     router = EminenceGrise::RouterAgent.new(registry: registry, default: :coder) do |task|
-      task.metadata[:agent]
+      task.metadata_value(:agent)
     end
 
-    docs_task = EminenceGrise::Task.new(id: "docs", title: "README", metadata: { agent: :docs })
+    docs_task = EminenceGrise::Task.new(id: "docs", title: "README", metadata: { "agent" => :docs })
     code_task = EminenceGrise::Task.new(id: "code", title: "Runner")
 
     expect(router.call(docs_task)).to eq("docs: README")

@@ -16,5 +16,16 @@ module EminenceGrise
         metadata: metadata.merge(additions)
       )
     end
+
+    def metadata_value(key)
+      return metadata[key] if metadata.key?(key)
+
+      alternate_key = case key
+                      when Symbol then key.to_s
+                      when String then key.to_sym
+                      else return nil
+                      end
+      metadata[alternate_key]
+    end
   end
 end

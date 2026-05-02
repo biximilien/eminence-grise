@@ -6,19 +6,22 @@ RSpec.describe EminenceGrise::ClaudeCodeAgent do
   it "runs claude in print mode with text output" do
     command = nil
     instruction = nil
+    stdin_data = :unset
     directory = nil
-    executor = lambda do |args, text, working_directory:|
+    executor = lambda do |args, stdin, working_directory:|
       command = args
-      instruction = text
+      stdin_data = stdin
       directory = working_directory
       ["done", "", ClaudeCodeStatus.new(true)]
     end
     task = EminenceGrise::Task.new(id: "one", title: "Add README")
 
-    described_class.new(working_directory: "/workspace", executor: executor).call(task)
+    result = described_class.new(working_directory: "/workspace", executor: executor).call(task)
 
+    instruction = result.instruction
     expect(command).to eq(["claude", "-p", "--output-format", "text", instruction])
     expect(command.last).to eq(instruction)
+    expect(stdin_data).to be_nil
     expect(directory).to eq("/workspace")
   end
 

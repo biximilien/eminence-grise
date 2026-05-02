@@ -50,6 +50,10 @@ module EminenceGrise
       end
     end
 
+    def stdin_for(_instruction)
+      nil
+    end
+
     def execution_error(result)
       ExecutionError.new(result)
     end

@@ -152,6 +152,25 @@ RSpec.describe "job integrations" do
     expect(logger.messages).to include_message(:info, /task finished id=task-1/)
   end
 
+  it "does not process generated follow-up tasks inside the job adapter" do
+    processed = []
+    agent = EminenceGrise::Agent.new do |task|
+      processed << task.id
+      EminenceGrise::AgentResult.split([
+        EminenceGrise::Task.new(id: "task-2", title: "Follow up")
+      ])
+    end
+    job_class = Class.new do
+      include EminenceGrise::ActiveJob
+      eminence_grise_agent { agent }
+    end
+
+    count = job_class.new.perform("id" => "task-1", "title" => "Fix specs")
+
+    expect(count).to eq(1)
+    expect(processed).to eq(["task-1"])
+  end
+
   it "inherits agent configuration from a parent job class" do
     processed = []
     agent = EminenceGrise::Agent.new { |task| processed << task.id }

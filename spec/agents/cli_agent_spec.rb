@@ -22,6 +22,14 @@ RSpec.describe EminenceGrise::CliAgent do
     end
   end
 
+  class NoStdinStreamingCliAgent < StreamingCliAgent
+    private
+
+    def stdin_for(_instruction)
+      nil
+    end
+  end
+
   it "builds the standard task instruction" do
     calls = []
     executor = lambda do |command, instruction, working_directory:|
@@ -179,5 +187,24 @@ RSpec.describe EminenceGrise::CliAgent do
 
     expect(stdout.string).to match(/\ATask ID: one\r?\n\z/)
     expect(result.stderr).to eq("hidden error")
+  end
+
+  it "can stream subprocess output without writing stdin" do
+    stdout = StringIO.new
+    agent = NoStdinStreamingCliAgent.new(
+      command: RbConfig.ruby,
+      extra_args: [
+        "-e",
+        "input = STDIN.read; STDOUT.write(input.empty? ? 'no stdin' : input)"
+      ],
+      stream: true,
+      stdout: stdout
+    )
+    task = EminenceGrise::Task.new(id: "one", title: "Add README")
+
+    result = agent.call(task)
+
+    expect(stdout.string).to eq("no stdin")
+    expect(result.instruction).to include("Task ID: one")
   end
 end

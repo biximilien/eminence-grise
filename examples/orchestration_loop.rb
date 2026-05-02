@@ -13,11 +13,11 @@ registry.register(:code, EminenceGrise::Agent.new do |task|
 end)
 
 router = EminenceGrise::RouterAgent.new(registry: registry, default: :code) do |task|
-  task.metadata[:agent]
+  task.metadata_value(:agent)
 end
 
 planner = EminenceGrise::Agent.new do |task|
-  if task.metadata[:agent]
+  if task.metadata_value(:agent)
     router.call(task)
   else
     EminenceGrise::AgentResult.split([

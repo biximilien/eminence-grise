@@ -38,7 +38,7 @@ module EminenceGrise
     def call(task)
       instruction = instruction_for(task)
       command = command_for(instruction)
-      stdout, stderr, status = @executor.call(command, instruction, working_directory: working_directory)
+      stdout, stderr, status = @executor.call(command, stdin_for(instruction), working_directory: working_directory)
       result = Result.new(
         task: task,
         instruction: instruction,
@@ -125,17 +125,23 @@ module EminenceGrise
       parts.join("\n\n")
     end
 
-    def capture(command, instruction, working_directory:)
-      Open3.capture3(*command, stdin_data: instruction, chdir: working_directory)
+    def stdin_for(instruction)
+      instruction
     end
 
-    def capture_streaming(command, instruction, working_directory:)
+    def capture(command, stdin_data, working_directory:)
+      options = { chdir: working_directory }
+      options[:stdin_data] = stdin_data unless stdin_data.nil?
+      Open3.capture3(*command, **options)
+    end
+
+    def capture_streaming(command, stdin_data, working_directory:)
       stdout_chunks = []
       stderr_chunks = []
       status = nil
 
       Open3.popen3(*command, chdir: working_directory) do |stdin, stdout, stderr, wait_thread|
-        stdin.write(instruction)
+        stdin.write(stdin_data) unless stdin_data.nil?
         stdin.close
 
         readers = [

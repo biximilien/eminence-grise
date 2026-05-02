@@ -6,17 +6,20 @@ RSpec.describe EminenceGrise::OpenCodeAgent do
   it "runs opencode in non-interactive run mode" do
     command = nil
     instruction = nil
-    executor = lambda do |args, text, working_directory:|
+    stdin_data = :unset
+    executor = lambda do |args, stdin, working_directory:|
       command = args
-      instruction = text
+      stdin_data = stdin
       ["done", "", OpenCodeStatus.new(true)]
     end
     task = EminenceGrise::Task.new(id: "one", title: "Add README")
 
-    described_class.new(executor: executor).call(task)
+    result = described_class.new(executor: executor).call(task)
 
+    instruction = result.instruction
     expect(command).to eq(["opencode", "run", instruction])
     expect(command.last).to eq(instruction)
+    expect(stdin_data).to be_nil
   end
 
   it "supports model, agent, output format, and extra arguments" do

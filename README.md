@@ -42,7 +42,7 @@ At runtime, the core loop is queue -> runner -> agent -> result handler -> queue
 
 Agents are plain callables. `EminenceGrise::Agent` wraps a Ruby block, while `EminenceGrise::CliAgent` provides common behavior for external command-line coding agents. CLI-backed agents all build a task instruction, execute a provider command in the configured working directory, capture stdout/stderr/status, optionally stream output, extract provider retry times, and raise provider-specific execution errors on failure.
 
-`EminenceGrise::AgentResult` is the orchestration boundary. Plain return values mean the task is complete with no follow-up work. Structured results can be `:complete`, `:split`, `:delegated`, or `:failed`; split and delegated results carry tasks that the result handler appends to the same queue. Delegation is implemented as metadata: `AgentResult.delegated(task, to: :docs)` returns a new task with `metadata[:agent]` set.
+`EminenceGrise::AgentResult` is the orchestration boundary. Plain return values mean the task is complete with no follow-up work. Structured results can be `:complete`, `:split`, `:delegated`, or `:failed`; split and delegated results carry tasks that the result handler appends to the same queue. Delegation is implemented as metadata: `AgentResult.delegated(task, to: :docs)` returns a new task with an `agent` metadata value set.
 
 Routing is handled by `EminenceGrise::AgentRegistry` and `EminenceGrise::RouterAgent`. The registry maps symbolic names to agent instances. The router chooses an agent from a routing block or a default, then dispatches the task. Missing routes and unknown registered names raise `RouterAgent::RoutingError`.
 
@@ -106,7 +106,7 @@ agent = EminenceGrise::ClaudeCodeAgent.new(working_directory: Dir.pwd)
 agent = EminenceGrise::OpenCodeAgent.new(working_directory: Dir.pwd)
 ```
 
-`CodexAgent` runs `codex exec`. `ClaudeCodeAgent` runs `claude -p`. `OpenCodeAgent` runs `opencode run`.
+`CodexAgent` runs `codex exec` and sends the task instruction on stdin. `ClaudeCodeAgent` runs `claude -p` and passes the instruction as the final command argument. `OpenCodeAgent` runs `opencode run` and also passes the instruction as the final command argument.
 
 CLI-agent output is captured in the returned result by default. The runner treats plain return values, including CLI results, as completed work and does not print them. Use `stream: true` when you want stdout and stderr to be shown while the external tool runs:
 
@@ -206,6 +206,8 @@ end
 
 Job integrations default to `eminence_grise_wait_on_retry_at false` so workers do not sleep while provider limits reset. Set `eminence_grise_wait_on_retry_at true` if you explicitly want the worker to wait inside the job.
 
+Job integrations intentionally process one payload per job. If an agent returns `AgentResult` follow-up tasks inside a job, those follow-ups are not persisted or re-enqueued by the integration yet; use the host framework or a future enqueue hook for fan-out.
+
 ## Queue Adapters
 
 The current runner expects a small queue object. `MemoryQueue` is the built-in FIFO adapter:
@@ -259,7 +261,7 @@ registry.register(:docs, docs_agent)
 registry.register(:code, code_agent)
 
 router = EminenceGrise::RouterAgent.new(registry: registry, default: :code) do |task|
-  task.metadata[:agent]
+  task.metadata_value(:agent)
 end
 ```
 
