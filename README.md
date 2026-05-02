@@ -2,9 +2,23 @@
 
 Éminence Grise is an agentic development framework built in Ruby.
 
-It aims to be simple, but powerful.
-
 It uses a simple architecture and agent loop to allow developers to create agents that can perform coding tasks.
+
+## Vision
+
+Éminence Grise aims to be simple, but powerful.
+
+The framework should require little to no configuration. It provides small Ruby building blocks for queues, runners, agents, orchestration, and process management, then expects external tools to bring their own configuration. For example, `CodexAgent` assumes Codex CLI is already installed, authenticated, and configured for the workspace.
+
+Power should come from composition rather than setup: write a queue, choose an agent, run the loop, and let specialized tools do the work they already know how to do.
+
+## Configuration Defaults
+
+Éminence Grise keeps its own configuration surface small.
+
+`ProcessRunner` uses `require_path: :auto` by default. In that mode, it adds `./lib` to Ruby's load path only when `working_directory/lib` exists. Set `require_path: nil` to disable load-path injection, or pass a string to use an explicit path.
+
+`CodexAgent` assumes Codex CLI is already installed, authenticated, and configured. The framework passes task instructions to `codex exec`; it does not try to own Codex configuration.
 
 ## Shape
 
@@ -79,6 +93,10 @@ A planner can also delegate by returning a routed task:
 EminenceGrise::AgentResult.delegated(task, to: :docs)
 ```
 
+Valid `AgentResult` statuses are `:complete`, `:split`, `:delegated`, and `:failed`. Unknown statuses raise `ArgumentError`.
+
+`RouterAgent` raises `RouterAgent::RoutingError` when a task has no route or when the selected agent has not been registered.
+
 ## Process API
 
 Use `ProcessRunner` when you want Éminence Grise to run a loop script for you:
@@ -98,8 +116,13 @@ process.stop_daemon
 bundle install
 ruby -I./lib examples/basic_loop.rb
 ruby -I./lib examples/orchestration_loop.rb
-ruby -I./lib examples/codex_loop.rb
 rake spec
+```
+
+The Codex example actually invokes Codex CLI against this repository:
+
+```sh
+ruby -I./lib examples/codex_loop.rb
 ```
 
 ## Running A Loop
@@ -144,6 +167,12 @@ runner = EminenceGrise::Runner.new(
 ```
 
 Set `wait_on_retry_at: false` if you want retry-time errors to bubble up immediately.
+
+## Failure Behavior
+
+`CodexAgent` raises `CodexAgent::ExecutionError` when `codex exec` fails. If the error output includes a retry or resume time, `Runner` waits until then and retries the same task by default.
+
+`AgentResult.failed(...)` causes the runner to raise. Routing failures raise `RouterAgent::RoutingError`.
 
 ## Direction
 
