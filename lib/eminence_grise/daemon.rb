@@ -3,9 +3,23 @@
 require "fileutils"
 
 module EminenceGrise
+  # Low-level pidfile-backed process daemon helper.
+  #
+  # Most users should prefer {ProcessRunner}, which configures the Ruby command
+  # and framework log defaults.
   class Daemon
     attr_reader :command, :pidfile, :working_directory, :stdin, :stdout, :stderr
 
+    # @param command [Array<String>, String] command to spawn
+    # @param pidfile [String] pidfile path
+    # @param working_directory [String]
+    # @param stdin [String] stdin redirection path
+    # @param stdout [String] stdout redirection path
+    # @param stderr [String] stderr redirection path
+    # @param spawner [#call, nil] injectable process spawner
+    # @param detacher [#call, nil] injectable process detacher
+    # @param signaler [#call, nil] injectable signal sender
+    # @param process_checker [#call, nil] injectable process checker
     def initialize(
       command:,
       pidfile:,
@@ -30,6 +44,10 @@ module EminenceGrise
       @process_checker = process_checker || Process.method(:kill)
     end
 
+    # Spawn and detach the configured process.
+    #
+    # @return [Integer] child process id
+    # @raise [ArgumentError] when command is empty
     def start
       raise ArgumentError, "daemon command cannot be empty" if @command.empty?
       raise "process already running with pid #{pid}" if running?
@@ -42,6 +60,10 @@ module EminenceGrise
       child_pid
     end
 
+    # Stop the daemon process named in the pidfile.
+    #
+    # @param signal [String]
+    # @return [Boolean] true when a live process was signaled
     def stop(signal: "TERM")
       current_pid = pid
       unless current_pid
@@ -59,11 +81,13 @@ module EminenceGrise
       true
     end
 
+    # @return [Boolean]
     def running?
       current_pid = pid
       current_pid && process_alive?(current_pid)
     end
 
+    # @return [Integer, nil]
     def pid
       return nil unless File.exist?(@pidfile)
 

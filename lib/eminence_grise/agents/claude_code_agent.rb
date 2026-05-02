@@ -3,15 +3,31 @@
 require_relative "cli_agent"
 
 module EminenceGrise
+  # CLI agent for Claude Code.
+  #
+  # Runs `claude -p` and passes the generated task instruction as the final
+  # command argument.
   class ClaudeCodeAgent < CliAgent
+    # Alias for the shared CLI result type.
     Result = CliAgent::Result
 
+    # Raised when `claude` fails.
     class ExecutionError < CliAgent::ExecutionError
       def initialize(result)
         super(result, command_name: "claude")
       end
     end
 
+    # @param command [String] Claude executable name or path
+    # @param working_directory [String] workspace directory
+    # @param model [String, nil] optional Claude model
+    # @param permission_mode [String, nil] optional Claude permission mode
+    # @param output_format [String] Claude output format
+    # @param extra_args [Array<String>] extra Claude arguments
+    # @param stream [Boolean] whether to stream Claude stdout/stderr
+    # @param stdout [IO, nil] stream target for stdout
+    # @param stderr [IO, nil] stream target for stderr
+    # @param executor [#call, nil] test seam for command execution
     def initialize(
       command: "claude",
       working_directory: Dir.pwd,

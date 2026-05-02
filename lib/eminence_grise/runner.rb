@@ -5,7 +5,17 @@ require_relative "logging"
 require_relative "runner/result_handler"
 
 module EminenceGrise
+  # Sequential task runner.
+  #
+  # The runner pops tasks from a queue, calls an agent, and lets
+  # {ResultHandler} enqueue any structured follow-up tasks.
   class Runner
+    # @param queue [#pop, #push] task source
+    # @param agent [#call] callable that processes a task
+    # @param logger [Logger, #puts, nil] optional logger
+    # @param wait_on_retry_at [Boolean] whether retryable CLI errors should sleep and retry
+    # @param sleeper [#call] injectable sleep callable for tests
+    # @param clock [#call] injectable clock callable for tests
     def initialize(queue:, agent:, logger: nil, wait_on_retry_at: true, sleeper: Kernel.method(:sleep), clock: Time.method(:now))
       @queue = queue
       @agent = agent
@@ -16,6 +26,11 @@ module EminenceGrise
       @result_handler = ResultHandler.new(queue: @queue, logger: @logger)
     end
 
+    # Process tasks until the queue is drained or max_tasks is reached.
+    #
+    # @param max_tasks [Integer, nil]
+    # @return [Integer] number of tasks processed
+    # @raise [StandardError] re-raises agent failures and failed agent results
     def run(max_tasks: nil)
       processed = 0
 

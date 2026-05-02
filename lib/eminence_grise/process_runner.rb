@@ -6,14 +6,30 @@ require_relative "daemon"
 require_relative "logging"
 
 module EminenceGrise
+  # Runs loop scripts in the foreground or as detached daemon processes.
   class ProcessRunner
+    # Default daemon pidfile path.
     DEFAULT_PIDFILE = ".eminence-grise/runner.pid"
+    # Default daemon framework log path.
     DEFAULT_LOG = ".eminence-grise/runner.log"
+    # Default daemon stdout path.
     DEFAULT_STDOUT = ".eminence-grise/runner.out.log"
+    # Default daemon stderr path.
     DEFAULT_STDERR = ".eminence-grise/runner.err.log"
 
     attr_reader :script, :pidfile, :log_path, :stdout, :stderr, :working_directory
 
+    # @param script [String, nil] loop script path
+    # @param ruby [String] Ruby executable for daemon runs
+    # @param require_path [String, :auto, nil] load path to add for script execution
+    # @param pidfile [String] daemon pidfile path
+    # @param log_path [String] framework log path for daemon runs
+    # @param log_format [:text, :json]
+    # @param log_level [Integer, String, Symbol]
+    # @param logger [Logger, #puts, nil] optional logger override
+    # @param stdout [String] daemon stdout path
+    # @param stderr [String] daemon stderr path
+    # @param working_directory [String]
     def initialize(
       script:,
       ruby: RbConfig.ruby,
@@ -45,6 +61,10 @@ module EminenceGrise
       @owned_loggers = []
     end
 
+    # Load and run the script in the current Ruby process.
+    #
+    # @return [void]
+    # @raise [ArgumentError] when script is nil
     def run_foreground
       require_script!
 
@@ -60,6 +80,10 @@ module EminenceGrise
       end
     end
 
+    # Spawn the script as a detached daemon.
+    #
+    # @return [Integer] child process id
+    # @raise [ArgumentError] when script is nil
     def start_daemon
       require_script!
 
@@ -69,18 +93,26 @@ module EminenceGrise
       pid
     end
 
+    # @return [Boolean]
     def stop_daemon
       daemon.stop
     end
 
+    # @return [Boolean]
     def daemon_running?
       daemon.running?
     end
 
+    # @return [Integer, nil]
     def daemon_pid
       daemon.pid
     end
 
+    # Close internally owned loggers.
+    #
+    # User-provided loggers are not closed.
+    #
+    # @return [Array]
     def close
       @owned_loggers.each do |logger|
         logger.close if logger.respond_to?(:close)
@@ -88,6 +120,7 @@ module EminenceGrise
       @owned_loggers.clear
     end
 
+    # @return [Daemon]
     def daemon
       @daemon ||= @daemon_class.new(
         command: command,

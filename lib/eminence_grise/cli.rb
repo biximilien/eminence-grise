@@ -5,10 +5,17 @@ require "optparse"
 require_relative "process_runner"
 
 module EminenceGrise
+  # Command-line interface implementation.
+  #
+  # @api private
   class CLI
+    # Default daemon pidfile path.
     DEFAULT_PIDFILE = ProcessRunner::DEFAULT_PIDFILE
+    # Default framework log path.
     DEFAULT_LOG = ProcessRunner::DEFAULT_LOG
+    # Default daemon stdout path.
     DEFAULT_STDOUT = ProcessRunner::DEFAULT_STDOUT
+    # Default daemon stderr path.
     DEFAULT_STDERR = ProcessRunner::DEFAULT_STDERR
 
     def initialize(argv, stdout: $stdout, stderr: $stderr)
@@ -17,6 +24,9 @@ module EminenceGrise
       @stderr = stderr
     end
 
+    # Parse argv and run the requested command.
+    #
+    # @return [Integer] process exit status
     def call
       command = @argv.shift
 

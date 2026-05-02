@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+# Top-level namespace for the Eminence Grise framework.
+module EminenceGrise; end
+
 require_relative "eminence_grise/agents/agent"
 require_relative "eminence_grise/agents/registry"
 require_relative "eminence_grise/agents/result"

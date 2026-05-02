@@ -1,0 +1,7 @@
+--title "Eminence Grise API Documentation"
+--readme README.md
+--markup markdown
+lib/**/*.rb
+-
+README.md
+LICENSE

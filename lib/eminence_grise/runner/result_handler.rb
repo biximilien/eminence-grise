@@ -4,12 +4,19 @@ require_relative "../agents/result"
 require_relative "../logging"
 
 module EminenceGrise
+  # Handles structured agent results for {Runner}.
+  #
+  # @api private
   class ResultHandler
     def initialize(queue:, logger: nil)
       @queue = queue
       @logger = Logging.coerce(logger)
     end
 
+    # Handle an agent result.
+    #
+    # @param result [Object]
+    # @return [void]
     def call(result)
       return unless result.is_a?(AgentResult)
 

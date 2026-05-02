@@ -5,27 +5,47 @@ require "open3"
 require "time"
 
 module EminenceGrise
+  # Base class for agents backed by external command-line tools.
+  #
+  # Subclasses provide a command shape and can choose whether task instructions
+  # are sent on stdin or as command arguments.
   class CliAgent
+    # Execution result returned by successful CLI agents.
     Result = Struct.new(:task, :instruction, :stdout, :stderr, :status, :retry_at, keyword_init: true)
+
+    # Status-like object used when a command cannot be spawned.
+    #
+    # @api private
     SpawnFailureStatus = Struct.new(:error, keyword_init: true) do
       def success?
         false
       end
     end
 
+    # Raised when a CLI command exits unsuccessfully or cannot be spawned.
     class ExecutionError < StandardError
       attr_reader :result
 
+      # @param result [Result]
+      # @param command_name [String]
       def initialize(result, command_name: "cli")
         @result = result
         super("#{command_name} failed for #{result.task.id}: #{CliAgent.failure_summary(result.stdout, result.stderr)}")
       end
 
+      # @return [Time, nil]
       def retry_at
         result.retry_at
       end
     end
 
+    # @param command [String] executable name or path
+    # @param working_directory [String] directory where the command runs
+    # @param extra_args [Array<String>] provider-specific arguments
+    # @param stream [Boolean] whether to stream child stdout/stderr live
+    # @param stdout [IO, nil] stream target for stdout
+    # @param stderr [IO, nil] stream target for stderr
+    # @param executor [#call, nil] test seam for command execution
     def initialize(command:, working_directory: Dir.pwd, extra_args: [], stream: false, stdout: $stdout, stderr: $stderr, executor: nil)
       @command = command
       @working_directory = working_directory
@@ -35,6 +55,11 @@ module EminenceGrise
       @executor = executor || (stream ? method(:capture_streaming) : method(:capture))
     end
 
+    # Execute the CLI agent for a task.
+    #
+    # @param task [Task]
+    # @return [Result]
+    # @raise [ExecutionError]
     def call(task)
       instruction = instruction_for(task)
       command = command_for(instruction)
@@ -63,6 +88,11 @@ module EminenceGrise
       raise execution_error(result)
     end
 
+    # Build a short error summary from command output.
+    #
+    # @param stdout [String]
+    # @param stderr [String]
+    # @return [String]
     def self.failure_summary(stdout, stderr)
       lines = [stderr, stdout].compact.join("\n").lines.filter_map do |line|
         normalized = line.strip
@@ -88,6 +118,11 @@ module EminenceGrise
       summary.length > 1_000 ? "#{summary[0, 997]}..." : summary
     end
 
+    # Build a failure message for commands that could not be spawned.
+    #
+    # @param command [Array<String>, String]
+    # @param error [SystemCallError]
+    # @return [String]
     def self.spawn_failure_message(command, error)
       command_name = Array(command).first || "command"
 

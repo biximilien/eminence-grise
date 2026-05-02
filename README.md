@@ -22,6 +22,16 @@ CLI-backed agents assume their tools are already installed, authenticated, and c
 
 Use `require "eminence_grise"` as the preferred stable public entrypoint. If you need sub-file loading, use canonical paths such as `require "eminence_grise/agents/codex_agent"` or `require "eminence_grise/runner/result_handler"`.
 
+## API Documentation
+
+This README is the conceptual guide. Generated YARD documentation is the API reference:
+
+```sh
+rake doc
+```
+
+The generated files are written to `doc/`, which is intentionally not committed.
+
 ## Architecture
 
 Éminence Grise is a small Ruby gem with a narrow public surface. `lib/eminence_grise.rb` is the canonical require entrypoint and wires together the framework classes. The command-line executable, `exe/eminence-grise`, is intentionally thin: it parses `run`, `stop`, and `status` commands, then delegates process lifecycle work to `EminenceGrise::ProcessRunner`.
