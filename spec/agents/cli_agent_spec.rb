@@ -64,6 +64,20 @@ RSpec.describe EminenceGrise::CliAgent do
     end.to raise_error(EminenceGrise::CliAgent::ExecutionError, /tool failed for one: nope/)
   end
 
+  it "raises execution errors when the command cannot be spawned" do
+    executor = lambda do |_command, _instruction, working_directory:|
+      raise Errno::ENOENT, "tool"
+    end
+    task = EminenceGrise::Task.new(id: "one", title: "Add README")
+
+    expect do
+      TestCliAgent.new(command: "tool", executor: executor).call(task)
+    end.to raise_error(EminenceGrise::CliAgent::ExecutionError) { |error|
+      expect(error.message).to include("command not found: tool")
+      expect(error.result.status).not_to be_success
+    }
+  end
+
   it "summarizes noisy failed output" do
     executor = lambda do |_command, _instruction, working_directory:|
       [

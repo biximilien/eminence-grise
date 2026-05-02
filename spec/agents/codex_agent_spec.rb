@@ -49,6 +49,17 @@ RSpec.describe EminenceGrise::CodexAgent do
     end.to raise_error(EminenceGrise::CodexAgent::ExecutionError, /nope/)
   end
 
+  it "raises a codex execution error when the command is missing" do
+    executor = lambda do |_command, _instruction, working_directory:|
+      raise Errno::ENOENT, "codex"
+    end
+    task = EminenceGrise::Task.new(id: "one", title: "Add README")
+
+    expect do
+      described_class.new(executor: executor).call(task)
+    end.to raise_error(EminenceGrise::CodexAgent::ExecutionError, /command not found: codex/)
+  end
+
   it "keeps result and error constants available" do
     expect(described_class::Result).to eq(EminenceGrise::CliAgent::Result)
     expect(described_class::ExecutionError).to be < EminenceGrise::CliAgent::ExecutionError

@@ -7,6 +7,11 @@ require "time"
 module EminenceGrise
   class CliAgent
     Result = Struct.new(:task, :instruction, :stdout, :stderr, :status, :retry_at, keyword_init: true)
+    SpawnFailureStatus = Struct.new(:error, keyword_init: true) do
+      def success?
+        false
+      end
+    end
 
     class ExecutionError < StandardError
       attr_reader :result
@@ -32,7 +37,8 @@ module EminenceGrise
 
     def call(task)
       instruction = instruction_for(task)
-      stdout, stderr, status = @executor.call(command_for(instruction), instruction, working_directory: working_directory)
+      command = command_for(instruction)
+      stdout, stderr, status = @executor.call(command, instruction, working_directory: working_directory)
       result = Result.new(
         task: task,
         instruction: instruction,
@@ -45,6 +51,16 @@ module EminenceGrise
       raise execution_error(result) unless status.success?
 
       result
+    rescue SystemCallError => error
+      result = Result.new(
+        task: task,
+        instruction: instruction,
+        stdout: "",
+        stderr: self.class.spawn_failure_message(command, error),
+        status: SpawnFailureStatus.new(error: error),
+        retry_at: nil
+      )
+      raise execution_error(result)
     end
 
     def self.failure_summary(stdout, stderr)
@@ -70,6 +86,17 @@ module EminenceGrise
       summary = summary_lines.uniq.first(3).join(" | ")
       summary = "command exited unsuccessfully" if summary.empty?
       summary.length > 1_000 ? "#{summary[0, 997]}..." : summary
+    end
+
+    def self.spawn_failure_message(command, error)
+      command_name = Array(command).first || "command"
+
+      case error
+      when Errno::ENOENT
+        "command not found: #{command_name} (#{error.message})"
+      else
+        "could not start command #{command_name}: #{error.message}"
+      end
     end
 
     private

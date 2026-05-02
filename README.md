@@ -306,6 +306,8 @@ Set `wait_on_retry_at: false` if you want retry-time errors to bubble up immedia
 
 CLI adapters raise provider-specific execution errors when their command fails: `CodexAgent::ExecutionError`, `ClaudeCodeAgent::ExecutionError`, and `OpenCodeAgent::ExecutionError`. Each wraps the shared CLI result surface: `stdout`, `stderr`, `status`, and `retry_at`.
 
+If the external command is not available on `PATH`, the adapter raises the same provider-specific execution error with a `command not found` message. Pass `command:` when the CLI lives at a specific path.
+
 `AgentResult.failed(...)` causes the runner to raise. Routing failures raise `RouterAgent::RoutingError`.
 
 ## Direction
