@@ -16,5 +16,5 @@ agent = EminenceGrise::CodexAgent.new(
   approval_policy: "never"
 )
 
-runner = EminenceGrise::Runner.new(queue: queue, agent: agent, logger: $stdout)
+runner = EminenceGrise::Runner.new(queue: queue, agent: agent, logger: EminenceGrise::Logging.console)
 runner.run

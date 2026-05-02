@@ -44,7 +44,11 @@ module EminenceGrise
 
     def stop(signal: "TERM")
       current_pid = pid
-      return false unless current_pid
+      unless current_pid
+        FileUtils.rm_f(@pidfile)
+        return false
+      end
+
       unless process_alive?(current_pid)
         FileUtils.rm_f(@pidfile)
         return false

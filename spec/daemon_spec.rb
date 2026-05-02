@@ -133,4 +133,23 @@ RSpec.describe EminenceGrise::Daemon do
       expect(File).not_to exist(pidfile)
     end
   end
+
+  it "removes an invalid pidfile without signaling" do
+    Dir.mktmpdir do |dir|
+      pidfile = File.join(dir, "runner.pid")
+      File.write(pidfile, "not-a-pid")
+      signals = []
+      signaler = ->(signal, pid) { signals << [signal, pid] }
+
+      daemon = described_class.new(
+        command: ["ruby", "worker.rb"],
+        pidfile: pidfile,
+        signaler: signaler
+      )
+
+      expect(daemon.stop).to be(false)
+      expect(signals).to be_empty
+      expect(File).not_to exist(pidfile)
+    end
+  end
 end
