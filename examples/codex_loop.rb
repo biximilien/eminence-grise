@@ -1,9 +1,14 @@
 # frozen_string_literal: true
 
+require "fileutils"
+
 require "eminence_grise"
 
 $stdout.sync = true
 $stderr.sync = true
+
+output_path = ".eminence-grise/codex-last-message.txt"
+FileUtils.mkdir_p(File.dirname(output_path))
 
 queue = EminenceGrise::MemoryQueue.new([
   EminenceGrise::Task.new(
@@ -13,12 +18,20 @@ queue = EminenceGrise::MemoryQueue.new([
   )
 ])
 
-agent = EminenceGrise::CodexAgent.new(
+codex = EminenceGrise::CodexAgent.new(
   working_directory: Dir.pwd,
   sandbox: "read-only",
   approval_policy: "never",
-  stream: true
+  output_last_message: output_path
 )
+
+agent = EminenceGrise::Agent.new do |task|
+  FileUtils.rm_f(output_path)
+  result = codex.call(task)
+  message = File.exist?(output_path) ? File.read(output_path) : result.stdout
+  puts message unless message.empty?
+  result
+end
 
 runner = EminenceGrise::Runner.new(
   queue: queue,

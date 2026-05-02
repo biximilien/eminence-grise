@@ -117,15 +117,16 @@ agent = EminenceGrise::CodexAgent.new(
 )
 ```
 
-Codex and similar CLIs often write progress to stderr, so foreground examples stream stderr too. If the CLI is noisy, silence live stderr while still capturing it for failures:
+Codex can produce a verbose transcript when streamed. For a quieter foreground program, ask Codex CLI to write only the final assistant message to a file and print that after the command finishes:
 
 ```ruby
-agent = EminenceGrise::CodexAgent.new(
+codex = EminenceGrise::CodexAgent.new(
   working_directory: Dir.pwd,
-  stream: true,
-  stderr: nil
+  output_last_message: ".eminence-grise/codex-last-message.txt"
 )
 ```
+
+See `examples/codex_loop.rb` for a complete version. If a CLI is noisy but you still want live stdout, pass `stderr: nil` to keep stderr captured for failures without streaming it live.
 
 You can also redirect child-process output to files by passing IO objects:
 

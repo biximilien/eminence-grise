@@ -38,6 +38,20 @@ RSpec.describe EminenceGrise::CodexAgent do
     expect(command.last).to eq("-")
   end
 
+  it "supports writing the last Codex message to a file" do
+    command = nil
+    executor = lambda do |args, _instruction, working_directory:|
+      command = args
+      ["", "", CodexStatus.new(true)]
+    end
+    task = EminenceGrise::Task.new(id: "one", title: "Add README")
+
+    described_class.new(output_last_message: ".eminence-grise/codex-last-message.txt", executor: executor).call(task)
+
+    expect(command).to include("--output-last-message", ".eminence-grise/codex-last-message.txt")
+    expect(command.last).to eq("-")
+  end
+
   it "raises when codex exec fails" do
     executor = lambda do |_command, _instruction, working_directory:|
       ["", "nope", CodexStatus.new(false)]
