@@ -15,8 +15,12 @@ The first version is intentionally small:
 - `EminenceGrise::Agent` wraps the callable that performs the work.
 - `EminenceGrise::CodexAgent` runs a task through `codex exec`.
 - `EminenceGrise::Runner` fetches tasks from the queue and asks the agent to process them sequentially.
+- `EminenceGrise::ProcessRunner` runs a loop script in the foreground or as a daemon.
+- `EminenceGrise::Daemon` provides low-level pidfile-backed process management.
 
-That gives us a tiny loop:
+## Framework API
+
+Use the framework directly when you want to own the process lifecycle:
 
 ```ruby
 queue = EminenceGrise::MemoryQueue.new([
@@ -42,6 +46,19 @@ agent = EminenceGrise::CodexAgent.new(
 EminenceGrise::Runner.new(queue: queue, agent: agent, logger: $stdout).run
 ```
 
+## Process API
+
+Use `ProcessRunner` when you want Éminence Grise to run a loop script for you:
+
+```ruby
+process = EminenceGrise::ProcessRunner.new(script: "examples/codex_loop.rb")
+
+process.run_foreground
+process.start_daemon
+process.daemon_running?
+process.stop_daemon
+```
+
 ## Try It
 
 ```sh
@@ -52,6 +69,8 @@ rake spec
 ```
 
 ## Running A Loop
+
+The executable is a thin wrapper around `EminenceGrise::ProcessRunner`.
 
 Run a loop script in the foreground:
 

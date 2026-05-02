@@ -1,15 +1,14 @@
 # frozen_string_literal: true
 
 require "optparse"
-require "rbconfig"
 
-require_relative "daemon"
+require_relative "process_runner"
 
 module EminenceGrise
   class CLI
-    DEFAULT_PIDFILE = ".eminence-grise/runner.pid"
-    DEFAULT_STDOUT = ".eminence-grise/runner.out.log"
-    DEFAULT_STDERR = ".eminence-grise/runner.err.log"
+    DEFAULT_PIDFILE = ProcessRunner::DEFAULT_PIDFILE
+    DEFAULT_STDOUT = ProcessRunner::DEFAULT_STDOUT
+    DEFAULT_STDERR = ProcessRunner::DEFAULT_STDERR
 
     def initialize(argv, stdout: $stdout, stderr: $stderr)
       @argv = argv
@@ -41,8 +40,8 @@ module EminenceGrise
         pidfile: DEFAULT_PIDFILE,
         stdout: DEFAULT_STDOUT,
         stderr: DEFAULT_STDERR,
-        ruby: RbConfig.ruby,
-        require_path: default_require_path
+        ruby: nil,
+        require_path: nil
       }
       parser = OptionParser.new do |opts|
         opts.banner = "Usage: eminence-grise run SCRIPT [options]"
@@ -59,10 +58,11 @@ module EminenceGrise
       return fail_with(parser.to_s) unless script
 
       if options[:background]
-        start_background(script, options)
+        pid = process_runner(script, options).start_daemon
+        @stdout.puts "started pid #{pid}"
+        0
       else
-        $LOAD_PATH.unshift(options[:require_path]) if options[:require_path]
-        load File.expand_path(script)
+        process_runner(script, options).run_foreground
         0
       end
     end
@@ -75,9 +75,9 @@ module EminenceGrise
       end
       parser.parse!(@argv)
 
-      daemon = Daemon.new(command: ["ruby"], pidfile: options[:pidfile])
+      runner = process_runner(nil, options)
       had_pidfile = File.exist?(options[:pidfile])
-      if daemon.stop
+      if runner.stop_daemon
         @stdout.puts "stopped #{options[:pidfile]}"
         0
       elsif had_pidfile
@@ -97,9 +97,9 @@ module EminenceGrise
       end
       parser.parse!(@argv)
 
-      daemon = Daemon.new(command: ["ruby"], pidfile: options[:pidfile])
-      if daemon.running?
-        @stdout.puts "running pid #{daemon.pid}"
+      runner = process_runner(nil, options)
+      if runner.daemon_running?
+        @stdout.puts "running pid #{runner.daemon_pid}"
         0
       else
         @stdout.puts "not running"
@@ -107,25 +107,16 @@ module EminenceGrise
       end
     end
 
-    def start_background(script, options)
-      command = [options[:ruby]]
-      command.push("-I", options[:require_path]) if options[:require_path]
-      command << script
-
-      daemon = Daemon.new(
-        command: command,
-        pidfile: options[:pidfile],
-        stdout: options[:stdout],
-        stderr: options[:stderr],
-        working_directory: Dir.pwd
-      )
-      pid = daemon.start
-      @stdout.puts "started pid #{pid}"
-      0
-    end
-
-    def default_require_path
-      File.directory?("lib") ? "./lib" : nil
+    def process_runner(script, options)
+      kwargs = {
+        script: script,
+        pidfile: options.fetch(:pidfile, DEFAULT_PIDFILE),
+        stdout: options.fetch(:stdout, DEFAULT_STDOUT),
+        stderr: options.fetch(:stderr, DEFAULT_STDERR)
+      }
+      kwargs[:ruby] = options[:ruby] if options[:ruby]
+      kwargs[:require_path] = options[:require_path] if options[:require_path]
+      ProcessRunner.new(**kwargs)
     end
 
     def fail_with(message)
