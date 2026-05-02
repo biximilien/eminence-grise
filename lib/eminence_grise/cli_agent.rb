@@ -30,7 +30,7 @@ module EminenceGrise
 
     def call(task)
       instruction = instruction_for(task)
-      stdout, stderr, status = @executor.call(command_for(instruction), instruction)
+      stdout, stderr, status = @executor.call(command_for(instruction), instruction, working_directory: working_directory)
       result = Result.new(
         task: task,
         instruction: instruction,
@@ -71,7 +71,7 @@ module EminenceGrise
       parts.join("\n\n")
     end
 
-    def capture(command, instruction)
+    def capture(command, instruction, working_directory:)
       Open3.capture3(*command, stdin_data: instruction, chdir: working_directory)
     end
 

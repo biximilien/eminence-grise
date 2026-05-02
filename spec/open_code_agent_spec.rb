@@ -6,7 +6,7 @@ RSpec.describe EminenceGrise::OpenCodeAgent do
   it "runs opencode in non-interactive run mode" do
     command = nil
     instruction = nil
-    executor = lambda do |args, text|
+    executor = lambda do |args, text, working_directory:|
       command = args
       instruction = text
       ["done", "", OpenCodeStatus.new(true)]
@@ -21,7 +21,7 @@ RSpec.describe EminenceGrise::OpenCodeAgent do
 
   it "supports model, agent, output format, and extra arguments" do
     command = nil
-    executor = lambda do |args, _instruction|
+    executor = lambda do |args, _instruction, working_directory:|
       command = args
       ["done", "", OpenCodeStatus.new(true)]
     end

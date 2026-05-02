@@ -42,19 +42,21 @@ module EminenceGrise
       @require_path = resolve_require_path(require_path)
       @daemon_class = daemon_class
       @loader = loader || method(:load_script)
+      @owned_loggers = []
     end
 
     def run_foreground
       require_script!
 
       with_working_directory do
-        add_require_path
-        foreground_logger.info("foreground run started script=#{@script}")
-        @loader.call(@script)
-        foreground_logger.info("foreground run finished script=#{@script}")
-      rescue StandardError => error
-        foreground_logger.error("foreground run failed script=#{@script} error=#{error.message.inspect}")
-        raise
+        with_require_path do
+          foreground_logger.info("foreground run started script=#{@script}")
+          @loader.call(@script)
+          foreground_logger.info("foreground run finished script=#{@script}")
+        rescue StandardError => error
+          foreground_logger.error("foreground run failed script=#{@script} error=#{error.message.inspect}")
+          raise
+        end
       end
     end
 
@@ -79,6 +81,13 @@ module EminenceGrise
       daemon.pid
     end
 
+    def close
+      @owned_loggers.each do |logger|
+        logger.close if logger.respond_to?(:close)
+      end
+      @owned_loggers.clear
+    end
+
     def daemon
       @daemon ||= @daemon_class.new(
         command: command,
@@ -98,14 +107,16 @@ module EminenceGrise
       end
     end
 
-    def add_require_path
-      return unless @require_path
-
-      $LOAD_PATH.unshift(@require_path) unless $LOAD_PATH.include?(@require_path)
-    end
-
     def with_working_directory(&block)
       Dir.chdir(@working_directory, &block)
+    end
+
+    def with_require_path
+      original_load_path = $LOAD_PATH.dup
+      $LOAD_PATH.unshift(@require_path) if @require_path && !$LOAD_PATH.include?(@require_path)
+      yield
+    ensure
+      $LOAD_PATH.replace(original_load_path)
     end
 
     def load_script(script)
@@ -113,11 +124,16 @@ module EminenceGrise
     end
 
     def foreground_logger
-      @foreground_logger ||= @logger ? Logging.coerce(@logger) : Logging.console(level: @log_level, format: @log_format)
+      @foreground_logger ||= @logger ? Logging.coerce(@logger) : own_logger(Logging.console(level: @log_level, format: @log_format))
     end
 
     def daemon_logger
-      @daemon_logger ||= @logger ? Logging.coerce(@logger) : Logging.file(@log_path, level: @log_level, format: @log_format)
+      @daemon_logger ||= @logger ? Logging.coerce(@logger) : own_logger(Logging.file(@log_path, level: @log_level, format: @log_format))
+    end
+
+    def own_logger(logger)
+      @owned_loggers << logger
+      logger
     end
 
     def require_script!

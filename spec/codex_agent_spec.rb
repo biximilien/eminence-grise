@@ -5,8 +5,8 @@ RSpec.describe EminenceGrise::CodexAgent do
 
   it "runs codex exec with the task instruction on stdin" do
     calls = []
-    executor = lambda do |command, instruction|
-      calls << [command, instruction]
+    executor = lambda do |command, instruction, working_directory:|
+      calls << [command, instruction, working_directory]
       ["done", "", CodexStatus.new(true)]
     end
     task = EminenceGrise::Task.new(id: "one", title: "Add README", description: "Write useful docs.")
@@ -17,14 +17,15 @@ RSpec.describe EminenceGrise::CodexAgent do
     expect(calls).to eq([
       [
         ["codex", "exec", "-C", "/repo", "--sandbox", "workspace-write", "--ask-for-approval", "never", "-"],
-        "Task ID: one\n\nTitle: Add README\n\nDescription:\nWrite useful docs."
+        "Task ID: one\n\nTitle: Add README\n\nDescription:\nWrite useful docs.",
+        "/repo"
       ]
     ])
   end
 
   it "supports model and extra Codex CLI arguments" do
     command = nil
-    executor = lambda do |args, _instruction|
+    executor = lambda do |args, _instruction, working_directory:|
       command = args
       ["", "", CodexStatus.new(true)]
     end
@@ -37,7 +38,7 @@ RSpec.describe EminenceGrise::CodexAgent do
   end
 
   it "raises when codex exec fails" do
-    executor = lambda do |_command, _instruction|
+    executor = lambda do |_command, _instruction, working_directory:|
       ["", "nope", CodexStatus.new(false)]
     end
     task = EminenceGrise::Task.new(id: "one", title: "Add README")
@@ -54,7 +55,7 @@ RSpec.describe EminenceGrise::CodexAgent do
 
   it "extracts a retry time from Codex limit errors" do
     retry_at = Time.iso8601("2026-05-02T15:30:00-04:00")
-    executor = lambda do |_command, _instruction|
+    executor = lambda do |_command, _instruction, working_directory:|
       ["", "usage limit reached; try again at 2026-05-02T15:30:00-04:00", CodexStatus.new(false)]
     end
     task = EminenceGrise::Task.new(id: "one", title: "Add README")

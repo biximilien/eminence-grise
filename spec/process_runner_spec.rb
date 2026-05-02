@@ -40,6 +40,20 @@ RSpec.describe EminenceGrise::ProcessRunner do
     expect(loaded).to eq([["examples/basic_loop.rb", Dir.pwd, "./lib"]])
   end
 
+  it "restores the load path after foreground execution" do
+    original_load_path = $LOAD_PATH.dup
+    runner = described_class.new(
+      script: "examples/basic_loop.rb",
+      require_path: "temporary/lib",
+      logger: EminenceGrise::Logging.null,
+      loader: ->(_script) { expect($LOAD_PATH.first).to eq("temporary/lib") }
+    )
+
+    runner.run_foreground
+
+    expect($LOAD_PATH).to eq(original_load_path)
+  end
+
   it "starts a daemon using the configured Ruby command" do
     runner = described_class.new(
       script: "examples/codex_loop.rb",
@@ -135,7 +149,25 @@ RSpec.describe EminenceGrise::ProcessRunner do
       runner.start_daemon
 
       expect(File.read(log_path)).to include("daemon started")
-      runner.send(:daemon_logger).close
+      runner.close
     end
+  end
+
+  it "does not close user-provided loggers" do
+    logger = instance_double(Logger)
+    allow(logger).to receive(:info)
+    allow(logger).to receive(:warn)
+    allow(logger).to receive(:error)
+    allow(logger).to receive(:close)
+    runner = described_class.new(
+      script: "worker.rb",
+      logger: logger,
+      daemon_class: FakeDaemon
+    )
+
+    runner.start_daemon
+    runner.close
+
+    expect(logger).not_to have_received(:close)
   end
 end

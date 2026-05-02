@@ -13,8 +13,8 @@ RSpec.describe EminenceGrise::CliAgent do
 
   it "builds the standard task instruction" do
     calls = []
-    executor = lambda do |command, instruction|
-      calls << [command, instruction]
+    executor = lambda do |command, instruction, working_directory:|
+      calls << [command, instruction, working_directory]
       ["ok", "", CliAgentStatus.new(true)]
     end
     task = EminenceGrise::Task.new(
@@ -27,24 +27,25 @@ RSpec.describe EminenceGrise::CliAgent do
     described_class = TestCliAgent
     described_class.new(command: "tool", executor: executor).call(task)
 
-    expect(calls.first.last).to include("Task ID: one")
-    expect(calls.first.last).to include("Title: Add README")
-    expect(calls.first.last).to include("Description:\nWrite useful docs.")
-    expect(calls.first.last).to include("\"agent\": \"docs\"")
+    expect(calls.first[1]).to include("Task ID: one")
+    expect(calls.first[1]).to include("Title: Add README")
+    expect(calls.first[1]).to include("Description:\nWrite useful docs.")
+    expect(calls.first[1]).to include("\"agent\": \"docs\"")
   end
 
   it "returns result on successful status" do
-    executor = ->(_command, _instruction) { ["done", "", CliAgentStatus.new(true)] }
+    executor = ->(_command, _instruction, working_directory:) { ["done", working_directory, CliAgentStatus.new(true)] }
     task = EminenceGrise::Task.new(id: "one", title: "Add README")
 
-    result = TestCliAgent.new(command: "tool", executor: executor).call(task)
+    result = TestCliAgent.new(command: "tool", working_directory: "/repo", executor: executor).call(task)
 
     expect(result.stdout).to eq("done")
+    expect(result.stderr).to eq("/repo")
     expect(result.task).to eq(task)
   end
 
   it "raises execution errors on failed status" do
-    executor = ->(_command, _instruction) { ["", "nope", CliAgentStatus.new(false)] }
+    executor = ->(_command, _instruction, working_directory:) { ["", "nope", CliAgentStatus.new(false)] }
     task = EminenceGrise::Task.new(id: "one", title: "Add README")
 
     expect do
@@ -54,7 +55,7 @@ RSpec.describe EminenceGrise::CliAgent do
 
   it "extracts retry timestamps from failed output" do
     retry_at = Time.iso8601("2026-05-02T15:30:00-04:00")
-    executor = lambda do |_command, _instruction|
+    executor = lambda do |_command, _instruction, working_directory:|
       ["", "rate limit reset at 2026-05-02T15:30:00-04:00", CliAgentStatus.new(false)]
     end
     task = EminenceGrise::Task.new(id: "one", title: "Add README")
@@ -64,5 +65,18 @@ RSpec.describe EminenceGrise::CliAgent do
     end.to raise_error(EminenceGrise::CliAgent::ExecutionError) { |error|
       expect(error.retry_at).to eq(retry_at)
     }
+  end
+
+  it "passes working_directory to injected executors" do
+    seen_working_directory = nil
+    executor = lambda do |_command, _instruction, working_directory:|
+      seen_working_directory = working_directory
+      ["ok", "", CliAgentStatus.new(true)]
+    end
+    task = EminenceGrise::Task.new(id: "one", title: "Add README")
+
+    TestCliAgent.new(command: "tool", working_directory: "/workspace", executor: executor).call(task)
+
+    expect(seen_working_directory).to eq("/workspace")
   end
 end

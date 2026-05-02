@@ -6,7 +6,7 @@ RSpec.describe EminenceGrise::ClaudeCodeAgent do
   it "runs claude in print mode with text output" do
     command = nil
     instruction = nil
-    executor = lambda do |args, text|
+    executor = lambda do |args, text, working_directory:|
       command = args
       instruction = text
       ["done", "", ClaudeCodeStatus.new(true)]
@@ -21,7 +21,7 @@ RSpec.describe EminenceGrise::ClaudeCodeAgent do
 
   it "supports model, permission mode, and extra arguments" do
     command = nil
-    executor = lambda do |args, _instruction|
+    executor = lambda do |args, _instruction, working_directory:|
       command = args
       ["done", "", ClaudeCodeStatus.new(true)]
     end
