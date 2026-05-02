@@ -68,6 +68,8 @@ EminenceGrise::Runner.new(queue: queue, agent: agent, logger: $stdout).run
 
 Éminence Grise can delegate tasks to external coding CLIs. These agents share the same task instruction format and return the same result shape.
 
+The CLI tools are expected to be installed, authenticated, and configured outside the framework. The framework stays small: it builds an instruction, invokes the CLI in the chosen working directory, and exposes `stdout`, `stderr`, `status`, and `retry_at` on the result surface.
+
 ```ruby
 agent = EminenceGrise::CodexAgent.new(working_directory: Dir.pwd)
 agent = EminenceGrise::ClaudeCodeAgent.new(working_directory: Dir.pwd)
@@ -76,7 +78,21 @@ agent = EminenceGrise::OpenCodeAgent.new(working_directory: Dir.pwd)
 
 `CodexAgent` runs `codex exec`. `ClaudeCodeAgent` runs `claude -p`. `OpenCodeAgent` runs `opencode run`.
 
-Each CLI is expected to be installed and configured outside the framework. Examples are available in `examples/codex_loop.rb`, `examples/claude_code_loop.rb`, and `examples/opencode_loop.rb`.
+Claude Code can be configured with the options users normally reach for:
+
+```ruby
+agent = EminenceGrise::ClaudeCodeAgent.new(
+  working_directory: Dir.pwd,
+  model: "sonnet",
+  permission_mode: "acceptEdits",
+  output_format: "text",
+  extra_args: ["--max-turns", "3"]
+)
+```
+
+Use `output_format: "json"` if you want Claude Code to emit JSON. Éminence Grise does not parse that JSON yet; it remains available as `result.stdout`.
+
+Examples are available in `examples/codex_loop.rb`, `examples/claude_code_loop.rb`, and `examples/opencode_loop.rb`.
 
 ## Orchestration
 
