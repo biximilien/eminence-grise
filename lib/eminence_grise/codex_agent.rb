@@ -2,10 +2,11 @@
 
 require "json"
 require "open3"
+require "time"
 
 module EminenceGrise
   class CodexAgent
-    Result = Struct.new(:task, :instruction, :stdout, :stderr, :status, keyword_init: true)
+    Result = Struct.new(:task, :instruction, :stdout, :stderr, :status, :retry_at, keyword_init: true)
 
     class ExecutionError < StandardError
       attr_reader :result
@@ -13,6 +14,10 @@ module EminenceGrise
       def initialize(result)
         @result = result
         super("codex exec failed for #{result.task.id}: #{result.stderr}")
+      end
+
+      def retry_at
+        result.retry_at
       end
     end
 
@@ -37,7 +42,14 @@ module EminenceGrise
     def call(task)
       instruction = instruction_for(task)
       stdout, stderr, status = @executor.call(command_for, instruction)
-      result = Result.new(task: task, instruction: instruction, stdout: stdout, stderr: stderr, status: status)
+      result = Result.new(
+        task: task,
+        instruction: instruction,
+        stdout: stdout,
+        stderr: stderr,
+        status: status,
+        retry_at: retry_at_for(stdout, stderr)
+      )
 
       raise ExecutionError, result unless status.success?
 
@@ -66,6 +78,41 @@ module EminenceGrise
 
     def capture(command, instruction)
       Open3.capture3(*command, stdin_data: instruction)
+    end
+
+    def retry_at_for(stdout, stderr)
+      [stdout, stderr].join("\n").lines.each do |line|
+        next unless retry_line?(line)
+
+        timestamp = timestamp_from(line)
+        return timestamp if timestamp
+      end
+
+      nil
+    end
+
+    def retry_line?(line)
+      line.match?(/retry|try again|resume|reset|available|rate limit|usage limit/i)
+    end
+
+    def timestamp_from(line)
+      iso_timestamp_from(line) || natural_timestamp_from(line)
+    end
+
+    def iso_timestamp_from(line)
+      match = line.match(/\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}(?::\d{2})?(?:\s?(?:Z|[+-]\d{2}:?\d{2}))?/)
+      parse_time(match[0]) if match
+    end
+
+    def natural_timestamp_from(line)
+      match = line.match(/(?:at|until|after)\s+(.+)$/i)
+      parse_time(match[1]) if match
+    end
+
+    def parse_time(value)
+      Time.parse(value.gsub(/\bUTC\b/i, "+00:00"))
+    rescue ArgumentError
+      nil
     end
   end
 end

@@ -46,4 +46,18 @@ RSpec.describe EminenceGrise::CodexAgent do
       described_class.new(executor: executor).call(task)
     end.to raise_error(EminenceGrise::CodexAgent::ExecutionError, /nope/)
   end
+
+  it "extracts a retry time from Codex limit errors" do
+    retry_at = Time.iso8601("2026-05-02T15:30:00-04:00")
+    executor = lambda do |_command, _instruction|
+      ["", "usage limit reached; try again at 2026-05-02T15:30:00-04:00", Status.new(false)]
+    end
+    task = EminenceGrise::Task.new(id: "one", title: "Add README")
+
+    expect do
+      described_class.new(executor: executor).call(task)
+    end.to raise_error(EminenceGrise::CodexAgent::ExecutionError) { |error|
+      expect(error.retry_at).to eq(retry_at)
+    }
+  end
 end

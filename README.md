@@ -97,6 +97,20 @@ ruby -I./lib exe/eminence-grise status
 ruby -I./lib exe/eminence-grise stop
 ```
 
+## Retry Times
+
+When `CodexAgent` sees a failed `codex exec` response that includes a retry or resume time, it exposes that time on the raised error. `Runner` waits until that time and retries the same task by default.
+
+```ruby
+runner = EminenceGrise::Runner.new(
+  queue: queue,
+  agent: agent,
+  wait_on_retry_at: true
+)
+```
+
+Set `wait_on_retry_at: false` if you want retry-time errors to bubble up immediately.
+
 ## Direction
 
 The framework should stay easy to reason about while growing toward real coding-agent workflows. Likely next pieces:
