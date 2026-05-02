@@ -13,7 +13,7 @@ module EminenceGrise
 
       def initialize(result, command_name: "cli")
         @result = result
-        super("#{command_name} failed for #{result.task.id}: #{result.stderr}")
+        super("#{command_name} failed for #{result.task.id}: #{CliAgent.failure_summary(result.stdout, result.stderr)}")
       end
 
       def retry_at
@@ -45,6 +45,31 @@ module EminenceGrise
       raise execution_error(result) unless status.success?
 
       result
+    end
+
+    def self.failure_summary(stdout, stderr)
+      lines = [stderr, stdout].compact.join("\n").lines.filter_map do |line|
+        normalized = line.strip
+        next if normalized.empty?
+
+        normalized = normalized.sub(/:?\s*<html>.*/i, "")
+        next if normalized.empty? || normalized.start_with?("<") || normalized.include?("</")
+
+        normalized
+      end
+
+      actionable = lines.select do |line|
+        line.match?(/(^ERROR\b|usage limit|rate limit|try again|resume|reset|available)/i)
+      end
+      contextual = lines.select do |line|
+        line.match?(/(failed with status|forbidden|authentication|login|no prompt)/i)
+      end
+      summary_lines = (actionable.empty? ? contextual : actionable)
+      summary_lines = lines if summary_lines.empty?
+
+      summary = summary_lines.uniq.first(3).join(" | ")
+      summary = "command exited unsuccessfully" if summary.empty?
+      summary.length > 1_000 ? "#{summary[0, 997]}..." : summary
     end
 
     private

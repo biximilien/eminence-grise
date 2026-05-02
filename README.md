@@ -24,26 +24,31 @@ Use `require "eminence_grise"` as the preferred stable public entrypoint. If you
 
 ## Architecture
 
-Éminence Grise is organized as a small Ruby gem under `lib/eminence_grise`, with `lib/eminence_grise.rb` acting as the public require entrypoint. The executable in `exe/eminence-grise` only parses process commands and delegates to the library.
+Éminence Grise is a small Ruby gem with a narrow public surface. `lib/eminence_grise.rb` is the canonical require entrypoint and wires together the framework classes. The command-line executable, `exe/eminence-grise`, is intentionally thin: it parses `run`, `stop`, and `status` commands, then delegates process lifecycle work to `EminenceGrise::ProcessRunner`.
 
-The runtime loop has four main layers:
+The repository is organized around these boundaries:
 
-- Tasks are immutable `EminenceGrise::Task` objects with an `id`, `title`, optional `description`, and frozen metadata.
-- Queues provide tasks to the loop. The current implementation is `EminenceGrise::MemoryQueue`, a simple in-process FIFO with `push`, `pop`, `empty?`, and `size`.
-- Agents are callables that accept a task. `EminenceGrise::Agent` wraps a Ruby block, while CLI-backed agents subclass `EminenceGrise::CliAgent`.
-- `EminenceGrise::Runner` owns sequential execution. It pops one task at a time, calls the agent, hands any `AgentResult` to `EminenceGrise::ResultHandler`, and logs task lifecycle events.
+- `lib/eminence_grise/task.rb` defines `EminenceGrise::Task`, the immutable unit of work. A task has an `id`, `title`, optional `description`, and frozen `metadata`; `with_metadata` returns a new task instead of mutating the original.
+- `lib/eminence_grise/memory_queue.rb` provides the current queue adapter, `EminenceGrise::MemoryQueue`, a simple in-process FIFO with `push`, `pop`, `empty?`, and `size`.
+- `lib/eminence_grise/runner.rb` owns the sequential task loop. It pops tasks, calls the configured agent, passes structured results to `EminenceGrise::ResultHandler`, logs lifecycle events, and can wait/retry when an execution error exposes `retry_at`.
+- `lib/eminence_grise/runner/result_handler.rb` is the bridge from agent output back into the queue. It ignores plain return values, raises failed `AgentResult`s, and enqueues generated follow-up tasks in order.
+- `lib/eminence_grise/agents/` contains the callable agent abstraction, orchestration result types, routing support, and CLI-backed adapters for external coding tools.
+- `lib/eminence_grise/process_runner.rb` and `lib/eminence_grise/daemon.rb` keep process management separate from task execution. They run loop scripts in the foreground or spawn/detach daemonized Ruby processes with pidfile, stdout, stderr, and framework-log paths.
+- `lib/eminence_grise/logging.rb` centralizes logger creation and coercion. Framework components receive logger objects instead of depending on a global logger.
+- `examples/` contains runnable loop scripts for the in-process agent path, orchestration, and the Codex, Claude Code, and OpenCode CLI adapters.
+- `spec/` mirrors the same boundaries with RSpec coverage for task execution, orchestration, CLI parsing, process/daemon behavior, logging, require compatibility, and each CLI agent.
 
-Agent results are the orchestration boundary. Plain return values are treated as completed work. `EminenceGrise::AgentResult` can mark work as `:complete`, `:split`, `:delegated`, or `:failed`; split and delegated results carry new tasks, which `EminenceGrise::ResultHandler` appends back onto the same queue. Failed results are raised as errors.
+At runtime, the core loop is queue -> runner -> agent -> result handler -> queue. `Runner` is deliberately sequential: one task is popped and processed at a time, and the loop continues until the queue is empty or `max_tasks` is reached. This makes the framework easy to reason about while still allowing agents to create additional work.
 
-Routing is implemented with `EminenceGrise::AgentRegistry` and `EminenceGrise::RouterAgent`. A registry maps symbolic names to agents, and a router chooses the agent name from task metadata, a routing block, or a default. Delegation is just a task re-enqueued with `metadata[:agent]` set.
+Agents are plain callables. `EminenceGrise::Agent` wraps a Ruby block, while `EminenceGrise::CliAgent` provides common behavior for external command-line coding agents. CLI-backed agents all build a task instruction, execute a provider command in the configured working directory, capture stdout/stderr/status, optionally stream output, extract provider retry times, and raise provider-specific execution errors on failure.
 
-External coding tools share the `CliAgent` base class. It formats task instructions, executes a command in a working directory, captures stdout/stderr/status, optionally streams output, extracts retry times from provider output, and raises provider-specific execution errors on failure. `CodexAgent`, `ClaudeCodeAgent`, and `OpenCodeAgent` only define the command-line shape for their respective tools.
+`EminenceGrise::AgentResult` is the orchestration boundary. Plain return values mean the task is complete with no follow-up work. Structured results can be `:complete`, `:split`, `:delegated`, or `:failed`; split and delegated results carry tasks that the result handler appends to the same queue. Delegation is implemented as metadata: `AgentResult.delegated(task, to: :docs)` returns a new task with `metadata[:agent]` set.
 
-Process management is separate from task execution. `EminenceGrise::ProcessRunner` runs a Ruby loop script either in the foreground via `load` or in the background through `EminenceGrise::Daemon`. `Daemon` is the low-level pidfile wrapper around `Process.spawn`, `Process.detach`, process liveness checks, and termination.
+Routing is handled by `EminenceGrise::AgentRegistry` and `EminenceGrise::RouterAgent`. The registry maps symbolic names to agent instances. The router chooses an agent from a routing block or a default, then dispatches the task. Missing routes and unknown registered names raise `RouterAgent::RoutingError`.
 
-Logging is centralized in `EminenceGrise::Logging`, which builds standard Ruby `Logger` instances for console, files, null output, text formatting, or JSON lines. `Runner`, `EminenceGrise::ResultHandler`, and `ProcessRunner` receive coerced logger objects rather than owning a global logger.
+Process lifecycle is outside the runner. `ProcessRunner` can `load` a loop script in the foreground with temporary load-path setup, or construct a Ruby command and hand it to `Daemon` for background execution. `Daemon` is the low-level pidfile wrapper around `Process.spawn`, `Process.detach`, process liveness checks, and termination.
 
-The tests in `spec/` mirror these boundaries: CLI parsing, daemon/process behavior, runner result handling, logging, task orchestration, and each agent adapter are covered independently.
+Logging is intentionally dependency-light. `EminenceGrise::Logging` builds standard Ruby `Logger` instances for console output, files, null output, text formatting, and JSON lines. Foreground process runs default to console logging; daemon runs default to `.eminence-grise/runner.log`, with stdout and stderr redirected separately.
 
 ## Shape
 
@@ -103,10 +108,14 @@ agent = EminenceGrise::OpenCodeAgent.new(working_directory: Dir.pwd)
 
 `CodexAgent` runs `codex exec`. `ClaudeCodeAgent` runs `claude -p`. `OpenCodeAgent` runs `opencode run`.
 
-CLI-agent output is captured in the returned result by default. Use `stream: true` when you want stdout and stderr to be shown while the external tool runs:
+CLI-agent output is captured in the returned result by default. Use `stream: true` when you want stdout and stderr to be shown while the external tool runs. Some CLIs can be noisy on stderr; pass `stderr: nil` to keep stderr captured for failures without streaming it live:
 
 ```ruby
-agent = EminenceGrise::CodexAgent.new(working_directory: Dir.pwd, stream: true)
+agent = EminenceGrise::CodexAgent.new(
+  working_directory: Dir.pwd,
+  stream: true,
+  stderr: nil
+)
 ```
 
 Claude Code can be configured with the options users normally reach for:
@@ -216,6 +225,8 @@ ruby -I./lib examples/codex_loop.rb
 ruby -I./lib examples/claude_code_loop.rb
 ruby -I./lib examples/opencode_loop.rb
 ```
+
+Run these from the repository root; the examples use `Dir.pwd` as the agent working directory. They are intended as smoke tests and ask the external agent to print a short summary rather than modify files.
 
 ## Running A Loop
 

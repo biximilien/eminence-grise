@@ -64,6 +64,24 @@ RSpec.describe EminenceGrise::CliAgent do
     end.to raise_error(EminenceGrise::CliAgent::ExecutionError, /tool failed for one: nope/)
   end
 
+  it "summarizes noisy failed output" do
+    executor = lambda do |_command, _instruction, working_directory:|
+      [
+        "",
+        "WARN sync failed with status 403 Forbidden: <html><body>huge challenge</body></html>\nERROR: You've hit your usage limit. Try again at 1:14 PM.",
+        CliAgentStatus.new(false)
+      ]
+    end
+    task = EminenceGrise::Task.new(id: "one", title: "Add README")
+
+    expect do
+      TestCliAgent.new(command: "tool", executor: executor).call(task)
+    end.to raise_error(EminenceGrise::CliAgent::ExecutionError) { |error|
+      expect(error.message).to include("You've hit your usage limit")
+      expect(error.message).not_to include("<html>")
+    }
+  end
+
   it "extracts retry timestamps from failed output" do
     retry_at = Time.iso8601("2026-05-02T15:30:00-04:00")
     executor = lambda do |_command, _instruction, working_directory:|
@@ -75,6 +93,21 @@ RSpec.describe EminenceGrise::CliAgent do
       TestCliAgent.new(command: "tool", executor: executor).call(task)
     end.to raise_error(EminenceGrise::CliAgent::ExecutionError) { |error|
       expect(error.retry_at).to eq(retry_at)
+    }
+  end
+
+  it "extracts natural retry timestamps with trailing punctuation" do
+    executor = lambda do |_command, _instruction, working_directory:|
+      ["", "ERROR: usage limit reached; try again at 1:14 PM.", CliAgentStatus.new(false)]
+    end
+    task = EminenceGrise::Task.new(id: "one", title: "Add README")
+
+    expect do
+      TestCliAgent.new(command: "tool", executor: executor).call(task)
+    end.to raise_error(EminenceGrise::CliAgent::ExecutionError) { |error|
+      expect(error.retry_at).to be_a(Time)
+      expect(error.retry_at.hour).to eq(13)
+      expect(error.retry_at.min).to eq(14)
     }
   end
 
@@ -112,5 +145,25 @@ RSpec.describe EminenceGrise::CliAgent do
     expect(stderr.string).to eq("visible error")
     expect(result.stdout).to eq(stdout.string)
     expect(result.stderr).to eq(stderr.string)
+  end
+
+  it "can capture stderr without streaming it" do
+    stdout = StringIO.new
+    agent = StreamingCliAgent.new(
+      command: RbConfig.ruby,
+      extra_args: [
+        "-e",
+        "input = STDIN.read; STDOUT.write(input.lines.first); STDERR.write('hidden error')"
+      ],
+      stream: true,
+      stdout: stdout,
+      stderr: nil
+    )
+    task = EminenceGrise::Task.new(id: "one", title: "Add README")
+
+    result = agent.call(task)
+
+    expect(stdout.string).to match(/\ATask ID: one\r?\n\z/)
+    expect(result.stderr).to eq("hidden error")
   end
 end
