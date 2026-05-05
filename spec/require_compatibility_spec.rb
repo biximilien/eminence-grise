@@ -53,7 +53,7 @@ RSpec.describe "require compatibility" do
 
   it "supports the canonical result handler direct require path" do
     _stdout, stderr, status = ruby_requires(<<~RUBY)
-      require "eminence_grise/runner/result_handler"
+      require "eminence_grise/result_handler"
       exit(EminenceGrise::ResultHandler ? 0 : 1)
     RUBY
 

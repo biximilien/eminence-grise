@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-require_relative "../agents/result"
-require_relative "../logging"
+require_relative "agents/result"
+require_relative "logging"
 
 module EminenceGrise
   # Handles structured agent results for {Runner}.

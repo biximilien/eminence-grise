@@ -10,8 +10,8 @@ require "yard"
 # US-ASCII encoding when the workspace path contains non-ASCII characters.
 class File
   def self.relative_path(from, to)
-    from = expand_path(from).encode(Encoding::UTF_8, invalid: :replace, undef: :replace).split(SEPARATOR)
-    to = expand_path(to).encode(Encoding::UTF_8, invalid: :replace, undef: :replace).split(SEPARATOR)
+    from = expand_utf8_path(from).split(SEPARATOR)
+    to = expand_utf8_path(to).split(SEPARATOR)
     from.length.times do
       break if from[0] != to[0]
 
@@ -20,6 +20,16 @@ class File
     end
     from.pop
     join(*(from.map { RELATIVE_PARENTDIR } + to))
+  end
+
+  def self.expand_utf8_path(path)
+    utf8_path(expand_path(utf8_path(path)))
+  end
+
+  def self.utf8_path(path)
+    path = path.dup
+    path.force_encoding(Encoding::UTF_8) unless path.encoding == Encoding::UTF_8
+    path.encode(Encoding::UTF_8, invalid: :replace, undef: :replace)
   end
 end
 

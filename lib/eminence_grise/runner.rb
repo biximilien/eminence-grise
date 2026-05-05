@@ -2,7 +2,7 @@
 
 require "time"
 require_relative "logging"
-require_relative "runner/result_handler"
+require_relative "result_handler"
 
 module EminenceGrise
   # Sequential task runner.

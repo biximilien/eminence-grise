@@ -20,7 +20,7 @@ Power should come from composition rather than setup: write a queue, choose an a
 
 CLI-backed agents assume their tools are already installed, authenticated, and configured. The framework passes task instructions to tools like Codex CLI, Claude Code, and OpenCode; it does not try to own their configuration.
 
-Use `require "eminence_grise"` as the preferred stable public entrypoint. If you need sub-file loading, use canonical paths such as `require "eminence_grise/agents/codex_agent"` or `require "eminence_grise/runner/result_handler"`.
+Use `require "eminence_grise"` as the preferred stable public entrypoint. If you need sub-file loading, use canonical paths such as `require "eminence_grise/agents/codex_agent"` or `require "eminence_grise/result_handler"`.
 
 ## API Documentation
 
@@ -41,7 +41,7 @@ The repository is organized around these boundaries:
 - `lib/eminence_grise/task.rb` defines `EminenceGrise::Task`, the immutable unit of work. A task has an `id`, `title`, optional `description`, and frozen `metadata`; `with_metadata` returns a new task instead of mutating the original.
 - `lib/eminence_grise/memory_queue.rb` provides the current queue adapter, `EminenceGrise::MemoryQueue`, a simple in-process FIFO with `push`, `pop`, `empty?`, and `size`.
 - `lib/eminence_grise/runner.rb` owns the sequential task loop. It pops tasks, calls the configured agent, passes structured results to `EminenceGrise::ResultHandler`, logs lifecycle events, and can wait/retry when an execution error exposes `retry_at`.
-- `lib/eminence_grise/runner/result_handler.rb` is the bridge from agent output back into the queue. It ignores plain return values, raises failed `AgentResult`s, and enqueues generated follow-up tasks in order.
+- `lib/eminence_grise/result_handler.rb` is the bridge from agent output back into the queue. It ignores plain return values, raises failed `AgentResult`s, and enqueues generated follow-up tasks in order.
 - `lib/eminence_grise/agents/` contains the callable agent abstraction, orchestration result types, routing support, and CLI-backed adapters for external coding tools.
 - `lib/eminence_grise/process_runner.rb` and `lib/eminence_grise/daemon.rb` keep process management separate from task execution. They run loop scripts in the foreground or spawn/detach daemonized Ruby processes with pidfile, stdout, stderr, and framework-log paths.
 - `lib/eminence_grise/logging.rb` centralizes logger creation and coercion. Framework components receive logger objects instead of depending on a global logger.
