@@ -11,7 +11,7 @@ module EminenceGrise
   # are sent on stdin or as command arguments.
   class CliAgent
     # Execution result returned by successful CLI agents.
-    Result = Struct.new(:task, :instruction, :stdout, :stderr, :status, :retry_at, keyword_init: true)
+    Result = Struct.new(:task, :instruction, :stdout, :stderr, :status, :retry_at, :elapsed_seconds, keyword_init: true)
 
     # Status-like object used when a command cannot be spawned.
     #
@@ -46,13 +46,15 @@ module EminenceGrise
     # @param stdout [IO, nil] stream target for stdout
     # @param stderr [IO, nil] stream target for stderr
     # @param executor [#call, nil] test seam for command execution
-    def initialize(command:, working_directory: Dir.pwd, extra_args: [], stream: false, stdout: $stdout, stderr: $stderr, executor: nil)
+    # @param monotonic_clock [#call] injectable monotonic clock for tests
+    def initialize(command:, working_directory: Dir.pwd, extra_args: [], stream: false, stdout: $stdout, stderr: $stderr, executor: nil, monotonic_clock: nil)
       @command = command
       @working_directory = working_directory
       @extra_args = extra_args
       @stream_stdout = stream ? stdout : nil
       @stream_stderr = stream ? stderr : nil
       @executor = executor || (stream ? method(:capture_streaming) : method(:capture))
+      @monotonic_clock = monotonic_clock || -> { Process.clock_gettime(Process::CLOCK_MONOTONIC) }
     end
 
     # Execute the CLI agent for a task.
@@ -63,14 +65,17 @@ module EminenceGrise
     def call(task)
       instruction = instruction_for(task)
       command = command_for(instruction)
+      started_at = @monotonic_clock.call
       stdout, stderr, status = @executor.call(command, stdin_for(instruction), working_directory: working_directory)
+      elapsed_seconds = elapsed_since(started_at)
       result = Result.new(
         task: task,
         instruction: instruction,
         stdout: stdout,
         stderr: stderr,
         status: status,
-        retry_at: retry_at_for(stdout, stderr)
+        retry_at: retry_at_for(stdout, stderr),
+        elapsed_seconds: elapsed_seconds
       )
 
       raise execution_error(result) unless status.success?
@@ -83,7 +88,8 @@ module EminenceGrise
         stdout: "",
         stderr: self.class.spawn_failure_message(command, error),
         status: SpawnFailureStatus.new(error: error),
-        retry_at: nil
+        retry_at: nil,
+        elapsed_seconds: started_at ? elapsed_since(started_at) : nil
       )
       raise execution_error(result)
     end
@@ -234,6 +240,10 @@ module EminenceGrise
       Time.parse(value.gsub(/\bUTC\b/i, "+00:00"))
     rescue ArgumentError
       nil
+    end
+
+    def elapsed_since(started_at)
+      @monotonic_clock.call - started_at
     end
   end
 end

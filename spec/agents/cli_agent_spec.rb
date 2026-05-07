@@ -63,26 +63,46 @@ RSpec.describe EminenceGrise::CliAgent do
     expect(result.task).to eq(task)
   end
 
+  it "records elapsed wall-clock seconds around command execution" do
+    times = [10.0, 12.75]
+    executor = ->(_command, _instruction, working_directory:) { ["done", "", CliAgentStatus.new(true)] }
+    task = EminenceGrise::Task.new(id: "one", title: "Add README")
+
+    result = TestCliAgent.new(
+      command: "tool",
+      executor: executor,
+      monotonic_clock: -> { times.shift }
+    ).call(task)
+
+    expect(result.elapsed_seconds).to eq(2.75)
+  end
+
   it "raises execution errors on failed status" do
+    times = [10.0, 11.5]
     executor = ->(_command, _instruction, working_directory:) { ["", "nope", CliAgentStatus.new(false)] }
     task = EminenceGrise::Task.new(id: "one", title: "Add README")
 
     expect do
-      TestCliAgent.new(command: "tool", executor: executor).call(task)
-    end.to raise_error(EminenceGrise::CliAgent::ExecutionError, /tool failed for one: nope/)
+      TestCliAgent.new(command: "tool", executor: executor, monotonic_clock: -> { times.shift }).call(task)
+    end.to raise_error(EminenceGrise::CliAgent::ExecutionError) { |error|
+      expect(error.message).to include("tool failed for one: nope")
+      expect(error.result.elapsed_seconds).to eq(1.5)
+    }
   end
 
   it "raises execution errors when the command cannot be spawned" do
+    times = [10.0, 10.25]
     executor = lambda do |_command, _instruction, working_directory:|
       raise Errno::ENOENT, "tool"
     end
     task = EminenceGrise::Task.new(id: "one", title: "Add README")
 
     expect do
-      TestCliAgent.new(command: "tool", executor: executor).call(task)
+      TestCliAgent.new(command: "tool", executor: executor, monotonic_clock: -> { times.shift }).call(task)
     end.to raise_error(EminenceGrise::CliAgent::ExecutionError) { |error|
       expect(error.message).to include("command not found: tool")
       expect(error.result.status).not_to be_success
+      expect(error.result.elapsed_seconds).to eq(0.25)
     }
   end
 
