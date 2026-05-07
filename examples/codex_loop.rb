@@ -31,6 +31,7 @@ agent = EminenceGrise::Agent.new do |task|
   message = File.exist?(output_path) ? File.read(output_path) : result.stdout
   puts message unless message.empty?
   warn "codex elapsed_seconds=#{format('%.2f', result.elapsed_seconds)}"
+  warn "codex usage=#{result.usage.inspect}" unless result.usage.empty?
   result
 end
 
@@ -46,5 +47,6 @@ begin
 rescue EminenceGrise::CliAgent::ExecutionError => error
   warn error.message
   warn "codex elapsed_seconds=#{format('%.2f', error.result.elapsed_seconds)}" if error.result.elapsed_seconds
+  warn "codex usage=#{error.result.usage.inspect}" unless error.result.usage.empty?
   exit 1
 end

@@ -11,7 +11,7 @@ module EminenceGrise
   # are sent on stdin or as command arguments.
   class CliAgent
     # Execution result returned by successful CLI agents.
-    Result = Struct.new(:task, :instruction, :stdout, :stderr, :status, :retry_at, :elapsed_seconds, keyword_init: true)
+    Result = Struct.new(:task, :instruction, :stdout, :stderr, :status, :retry_at, :elapsed_seconds, :usage, keyword_init: true)
 
     # Status-like object used when a command cannot be spawned.
     #
@@ -47,7 +47,8 @@ module EminenceGrise
     # @param stderr [IO, nil] stream target for stderr
     # @param executor [#call, nil] test seam for command execution
     # @param monotonic_clock [#call] injectable monotonic clock for tests
-    def initialize(command:, working_directory: Dir.pwd, extra_args: [], stream: false, stdout: $stdout, stderr: $stderr, executor: nil, monotonic_clock: nil)
+    # @param usage_parser [#call, nil] optional parser for provider-specific usage output
+    def initialize(command:, working_directory: Dir.pwd, extra_args: [], stream: false, stdout: $stdout, stderr: $stderr, executor: nil, monotonic_clock: nil, usage_parser: nil)
       @command = command
       @working_directory = working_directory
       @extra_args = extra_args
@@ -55,6 +56,7 @@ module EminenceGrise
       @stream_stderr = stream ? stderr : nil
       @executor = executor || (stream ? method(:capture_streaming) : method(:capture))
       @monotonic_clock = monotonic_clock || -> { Process.clock_gettime(Process::CLOCK_MONOTONIC) }
+      @usage_parser = usage_parser || method(:usage_for)
     end
 
     # Execute the CLI agent for a task.
@@ -75,7 +77,8 @@ module EminenceGrise
         stderr: stderr,
         status: status,
         retry_at: retry_at_for(stdout, stderr),
-        elapsed_seconds: elapsed_seconds
+        elapsed_seconds: elapsed_seconds,
+        usage: @usage_parser.call(stdout, stderr)
       )
 
       raise execution_error(result) unless status.success?
@@ -89,7 +92,8 @@ module EminenceGrise
         stderr: self.class.spawn_failure_message(command, error),
         status: SpawnFailureStatus.new(error: error),
         retry_at: nil,
-        elapsed_seconds: started_at ? elapsed_since(started_at) : nil
+        elapsed_seconds: started_at ? elapsed_since(started_at) : nil,
+        usage: {}
       )
       raise execution_error(result)
     end
@@ -244,6 +248,29 @@ module EminenceGrise
 
     def elapsed_since(started_at)
       @monotonic_clock.call - started_at
+    end
+
+    def usage_for(stdout, stderr)
+      text = [stdout, stderr].compact.join("\n")
+      usage = {}
+
+      usage[:input_tokens] = token_value(text, /(?:input|prompt)\s+tokens?/i)
+      usage[:output_tokens] = token_value(text, /(?:output|completion)\s+tokens?/i)
+      usage[:cached_tokens] = token_value(text, /cached\s+tokens?/i)
+      usage[:total_tokens] = token_value(text, /total\s+tokens?/i)
+      usage[:estimated_cost] = cost_value(text)
+
+      usage.compact.freeze
+    end
+
+    def token_value(text, label_pattern)
+      match = text.match(/#{label_pattern.source}\D+([\d,]+)/i)
+      Integer(match[1].delete(",")) if match
+    end
+
+    def cost_value(text)
+      match = text.match(/(?:estimated\s+)?cost\D+\$?([0-9]+(?:\.[0-9]+)?)/i)
+      Float(match[1]) if match
     end
   end
 end

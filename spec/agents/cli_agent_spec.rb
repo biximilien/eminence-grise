@@ -77,6 +77,37 @@ RSpec.describe EminenceGrise::CliAgent do
     expect(result.elapsed_seconds).to eq(2.75)
   end
 
+  it "captures token and cost usage when the CLI emits common verbose labels" do
+    executor = lambda do |_command, _instruction, working_directory:|
+      [
+        "input tokens: 1,234\noutput tokens: 56\ncached tokens: 789\ntotal tokens: 2,079\nestimated cost: $0.0123",
+        "",
+        CliAgentStatus.new(true)
+      ]
+    end
+    task = EminenceGrise::Task.new(id: "one", title: "Add README")
+
+    result = TestCliAgent.new(command: "tool", executor: executor).call(task)
+
+    expect(result.usage).to eq(
+      input_tokens: 1234,
+      output_tokens: 56,
+      cached_tokens: 789,
+      total_tokens: 2079,
+      estimated_cost: 0.0123
+    )
+  end
+
+  it "supports provider-specific usage parsers" do
+    executor = ->(_command, _instruction, working_directory:) { ["provider-specific output", "", CliAgentStatus.new(true)] }
+    parser = ->(stdout, stderr) { { raw_usage: "#{stdout}/#{stderr}".strip } }
+    task = EminenceGrise::Task.new(id: "one", title: "Add README")
+
+    result = TestCliAgent.new(command: "tool", executor: executor, usage_parser: parser).call(task)
+
+    expect(result.usage).to eq(raw_usage: "provider-specific output/")
+  end
+
   it "raises execution errors on failed status" do
     times = [10.0, 11.5]
     executor = ->(_command, _instruction, working_directory:) { ["", "nope", CliAgentStatus.new(false)] }
