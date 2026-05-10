@@ -16,15 +16,16 @@ queue = EminenceGrise::MemoryQueue.new([
       Use the sandbox repository as the target workspace:
       #{sandbox_directory}
 
-      The sandbox can be modified unconditionally. Create or use the branch
-      from task metadata, then update the README so it clearly explains that
-      this repository is the disposable target for Eminence Grise agent tasks.
+      The sandbox can be modified unconditionally. Update the README so it
+      clearly explains that this repository is the disposable target for
+      Eminence Grise agent tasks.
 
       Do not modify the Eminence Grise gem or demo app repositories.
     TEXT
     metadata: {
       working_directory: sandbox_directory,
-      branch: "biximilien/docs/sandbox-readme"
+      branch: "biximilien/docs/sandbox-readme",
+      commit_message: "docs: clarify sandbox repository purpose"
     }
   )
 ])
@@ -41,14 +42,17 @@ agent = EminenceGrise::Agent.new do |task|
   result = codex.call(task)
   message = File.exist?(output_path) ? File.read(output_path) : result.stdout
   puts message unless message.empty?
+  FileUtils.rm_f(output_path)
   warn "codex elapsed_seconds=#{format('%.2f', result.elapsed_seconds)}"
   warn "codex usage=#{result.usage.inspect}" unless result.usage.empty?
   result
 end
 
+workflow = EminenceGrise::GitWorkflow.new(logger: EminenceGrise::Logging.console)
 runner = EminenceGrise::Runner.new(
   queue: queue,
   agent: agent,
+  workflow: workflow,
   logger: EminenceGrise::Logging.console,
   wait_on_retry_at: false
 )

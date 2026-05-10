@@ -20,6 +20,7 @@ RSpec.describe "require compatibility" do
         EminenceGrise::AgentRegistry,
         EminenceGrise::AgentResult,
         EminenceGrise::RouterAgent,
+        EminenceGrise::GitWorkflow,
         EminenceGrise::ResultHandler,
         EminenceGrise::TaskPayload,
         EminenceGrise::ActiveJob,
@@ -55,6 +56,15 @@ RSpec.describe "require compatibility" do
     _stdout, stderr, status = ruby_requires(<<~RUBY)
       require "eminence_grise/result_handler"
       exit(EminenceGrise::ResultHandler ? 0 : 1)
+    RUBY
+
+    expect(status).to be_success, stderr
+  end
+
+  it "supports the canonical git workflow direct require path" do
+    _stdout, stderr, status = ruby_requires(<<~RUBY)
+      require "eminence_grise/git_workflow"
+      exit(EminenceGrise::GitWorkflow ? 0 : 1)
     RUBY
 
     expect(status).to be_success, stderr

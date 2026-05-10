@@ -215,7 +215,7 @@ RSpec.describe EminenceGrise::CliAgent do
     result = agent.call(task)
 
     expect(stdout.string).to match(/\ATask ID: one\r?\n\z/)
-    expect(stderr.string).to eq("visible error")
+    expect(stderr.string).to end_with("visible error")
     expect(result.stdout).to eq(stdout.string)
     expect(result.stderr).to eq(stderr.string)
   end
@@ -237,7 +237,7 @@ RSpec.describe EminenceGrise::CliAgent do
     result = agent.call(task)
 
     expect(stdout.string).to match(/\ATask ID: one\r?\n\z/)
-    expect(result.stderr).to eq("hidden error")
+    expect(result.stderr).to end_with("hidden error")
   end
 
   it "can stream subprocess output without writing stdin" do

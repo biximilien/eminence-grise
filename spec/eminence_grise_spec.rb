@@ -56,6 +56,65 @@ RSpec.describe EminenceGrise::Runner do
     expect(processed).to eq(["one", "two"])
   end
 
+  it "runs workflow hooks around successful agent execution before result handling" do
+    queue = EminenceGrise::MemoryQueue.new([
+      EminenceGrise::Task.new(id: "one", title: "First")
+    ])
+    events = []
+    after_queue_size = nil
+    workflow = Object.new
+    workflow.define_singleton_method(:before_task) { |_task| events << :before }
+    workflow.define_singleton_method(:after_task) do |_task, _result|
+      events << :after
+      after_queue_size = queue.size
+    end
+    agent = EminenceGrise::Agent.new do |_task|
+      events << :agent
+      EminenceGrise::AgentResult.complete(tasks: [
+        EminenceGrise::Task.new(id: "two", title: "Second")
+      ])
+    end
+
+    count = described_class.new(queue: queue, agent: agent, workflow: workflow).run(max_tasks: 1)
+
+    expect(count).to eq(1)
+    expect(events).to eq([:before, :agent, :after])
+    expect(after_queue_size).to eq(0)
+    expect(queue.size).to eq(1)
+  end
+
+  it "does not run workflow after_task when the agent raises" do
+    queue = EminenceGrise::MemoryQueue.new([
+      EminenceGrise::Task.new(id: "one", title: "First")
+    ])
+    after_called = false
+    workflow = Object.new
+    workflow.define_singleton_method(:before_task) { |_task| }
+    workflow.define_singleton_method(:after_task) { |_task, _result| after_called = true }
+    agent = EminenceGrise::Agent.new { |_task| raise "boom" }
+
+    expect do
+      described_class.new(queue: queue, agent: agent, workflow: workflow).run
+    end.to raise_error(RuntimeError, "boom")
+    expect(after_called).to be(false)
+  end
+
+  it "does not run workflow after_task for failed agent results" do
+    queue = EminenceGrise::MemoryQueue.new([
+      EminenceGrise::Task.new(id: "one", title: "First")
+    ])
+    after_called = false
+    workflow = Object.new
+    workflow.define_singleton_method(:before_task) { |_task| }
+    workflow.define_singleton_method(:after_task) { |_task, _result| after_called = true }
+    agent = EminenceGrise::Agent.new { |_task| EminenceGrise::AgentResult.failed("nope") }
+
+    expect do
+      described_class.new(queue: queue, agent: agent, workflow: workflow).run
+    end.to raise_error(RuntimeError, "nope")
+    expect(after_called).to be(false)
+  end
+
   it "logs task lifecycle and enqueued tasks through logger levels" do
     logger = instance_double(Logger)
     allow(logger).to receive(:info)

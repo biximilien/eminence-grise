@@ -21,6 +21,8 @@ Gem::Specification.new do |spec|
   spec.files = Dir["exe/*", "lib/**/*.rb", "LICENSE", "README.md"]
   spec.require_paths = ["lib"]
 
+  spec.add_dependency "logger", ">= 1.4"
+
   spec.add_development_dependency "rake", "~> 13.2"
   spec.add_development_dependency "rspec", "~> 3.13"
   spec.add_development_dependency "yard", "~> 0.9"

@@ -13,13 +13,15 @@ module EminenceGrise
     # @param queue [#pop, #push] task source
     # @param agent [#call] callable that processes a task
     # @param logger [Logger, #puts, nil] optional logger
+    # @param workflow [#before_task, #after_task, nil] optional task workflow
     # @param wait_on_retry_at [Boolean] whether retryable CLI errors should sleep and retry
     # @param sleeper [#call] injectable sleep callable for tests
     # @param clock [#call] injectable clock callable for tests
-    def initialize(queue:, agent:, logger: nil, wait_on_retry_at: true, sleeper: Kernel.method(:sleep), clock: Time.method(:now))
+    def initialize(queue:, agent:, logger: nil, workflow: nil, wait_on_retry_at: true, sleeper: Kernel.method(:sleep), clock: Time.method(:now))
       @queue = queue
       @agent = agent
       @logger = Logging.coerce(logger)
+      @workflow = workflow
       @wait_on_retry_at = wait_on_retry_at
       @sleeper = sleeper
       @clock = clock
@@ -49,7 +51,9 @@ module EminenceGrise
     def run_task(task)
       loop do
         @logger.info("task started id=#{task.id} title=#{task.title.inspect}")
+        @workflow&.before_task(task)
         result = @agent.call(task)
+        @workflow&.after_task(task, result) unless failed_result?(result)
         @result_handler.call(result)
         @logger.info("task finished id=#{task.id} title=#{task.title.inspect}")
         return
@@ -68,6 +72,10 @@ module EminenceGrise
 
     def wait_for_retry?(error)
       @wait_on_retry_at && error.respond_to?(:retry_at) && error.retry_at
+    end
+
+    def failed_result?(result)
+      result.is_a?(AgentResult) && result.failed?
     end
 
   end

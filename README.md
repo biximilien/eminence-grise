@@ -43,6 +43,7 @@ The repository is organized around these boundaries:
 - `lib/eminence_grise/runner.rb` owns the sequential task loop. It pops tasks, calls the configured agent, passes structured results to `EminenceGrise::ResultHandler`, logs lifecycle events, and can wait/retry when an execution error exposes `retry_at`.
 - `lib/eminence_grise/result_handler.rb` is the bridge from agent output back into the queue. It ignores plain return values, raises failed `AgentResult`s, and enqueues generated follow-up tasks in order.
 - `lib/eminence_grise/agents/` contains the callable agent abstraction, orchestration result types, routing support, and CLI-backed adapters for external coding tools.
+- `lib/eminence_grise/git_workflow.rb` provides optional local Git branch and commit handling around task execution.
 - `lib/eminence_grise/process_runner.rb` and `lib/eminence_grise/daemon.rb` keep process management separate from task execution. They run loop scripts in the foreground or spawn/detach daemonized Ruby processes with pidfile, stdout, stderr, and framework-log paths.
 - `lib/eminence_grise/logging.rb` centralizes logger creation and coercion. Framework components receive logger objects instead of depending on a global logger.
 - `examples/` contains runnable loop scripts for the in-process agent path, orchestration, and the Codex, Claude Code, and OpenCode CLI adapters.
@@ -71,6 +72,7 @@ The first version is intentionally small:
 - `EminenceGrise::CodexAgent` runs a task through Codex CLI.
 - `EminenceGrise::ClaudeCodeAgent` runs a task through Claude Code.
 - `EminenceGrise::OpenCodeAgent` runs a task through OpenCode.
+- `EminenceGrise::GitWorkflow` prepares task branches and commits successful agent changes.
 - `EminenceGrise::Logging` creates console, file, null, text, and JSON loggers.
 - `EminenceGrise::Runner` fetches tasks from the queue and asks the agent to process them sequentially.
 - `EminenceGrise::ProcessRunner` runs a loop script in the foreground or as a daemon.
@@ -285,6 +287,27 @@ Valid `AgentResult` statuses are `:complete`, `:split`, `:delegated`, and `:fail
 
 `RouterAgent` raises `RouterAgent::RoutingError` when a task has no route or when the selected agent has not been registered.
 
+## Git Workflow
+
+Pass `EminenceGrise::GitWorkflow` to `Runner` when the framework should prepare a local task branch and commit successful agent changes:
+
+```ruby
+task = EminenceGrise::Task.new(
+  id: "task-1",
+  title: "Update docs",
+  metadata: {
+    "working_directory" => "/path/to/repo",
+    "branch" => "biximilien/docs/update-docs",
+    "commit_message" => "docs: update project docs"
+  }
+)
+
+workflow = EminenceGrise::GitWorkflow.new(logger: EminenceGrise::Logging.console)
+runner = EminenceGrise::Runner.new(queue: queue, agent: agent, workflow: workflow)
+```
+
+The workflow requires a clean target repository before it starts. It checks out an existing branch or creates a missing branch from the current `HEAD`, then invokes the agent. After a successful agent result, it stages all changes and commits them with `AgentResult` `commit_message` metadata or task `commit_message` metadata. If the agent fails, returns `AgentResult.failed`, or produces no file changes, no commit is created.
+
 ## Logging
 
 Éminence Grise uses Ruby's standard `Logger`.
@@ -362,7 +385,7 @@ The example claims files from `queued/`, moves active work through `processing/`
 
 For local smoke tests, set `MAX_TASKS=1` to process one queued task and exit.
 
-The development workflow recipe shows how to encode branch, ticket, conventional commit, and PR expectations as task metadata and prompt instructions without adding git policy to the framework:
+The development workflow recipe shows how to encode branch, ticket, conventional commit, and PR expectations as task metadata and prompt instructions:
 
 ```sh
 ruby -I./lib examples/development_workflow.rb
