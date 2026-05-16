@@ -136,6 +136,19 @@ RSpec.describe EminenceGrise::Runner do
     expect(logger).to have_received(:info).with(/task finished id=one/)
   end
 
+  it "emits task lifecycle events through observer" do
+    events = []
+    queue = EminenceGrise::MemoryQueue.new([
+      EminenceGrise::Task.new(id: "one", title: "First")
+    ])
+    agent = EminenceGrise::Agent.new { |_task| }
+
+    described_class.new(queue: queue, agent: agent, observer: ->(event) { events << event }).run
+
+    expect(events.map(&:type)).to eq(["runner.task.started", "runner.task.finished"])
+    expect(events.map(&:task_id)).to eq(["one", "one"])
+  end
+
   it "raises failed agent results" do
     queue = EminenceGrise::MemoryQueue.new([
       EminenceGrise::Task.new(id: "one", title: "First")
@@ -161,6 +174,21 @@ RSpec.describe EminenceGrise::Runner do
       described_class.new(queue: queue, agent: agent, logger: logger).run
     end.to raise_error(RuntimeError, "boom")
     expect(logger).to have_received(:error).with(/task failed id=one/)
+  end
+
+  it "emits task failure events before raising" do
+    events = []
+    queue = EminenceGrise::MemoryQueue.new([
+      EminenceGrise::Task.new(id: "one", title: "First")
+    ])
+    agent = EminenceGrise::Agent.new { |_task| raise "boom" }
+
+    expect do
+      described_class.new(queue: queue, agent: agent, observer: ->(event) { events << event }).run
+    end.to raise_error(RuntimeError, "boom")
+
+    expect(events.map(&:type)).to include("runner.task.failed")
+    expect(events.last.data).to include(error_class: "RuntimeError", error_message: "boom")
   end
 
   it "waits until retry_at and retries the same task" do
@@ -214,6 +242,31 @@ RSpec.describe EminenceGrise::Runner do
     ).run
 
     expect(logger).to have_received(:warn).with(/task retry waiting id=one/)
+  end
+
+  it "emits retry wait events" do
+    retry_at = Time.iso8601("2026-05-02T15:00:05-04:00")
+    now = Time.iso8601("2026-05-02T15:00:00-04:00")
+    events = []
+    queue = EminenceGrise::MemoryQueue.new([
+      EminenceGrise::Task.new(id: "one", title: "First")
+    ])
+    attempts = 0
+    agent = EminenceGrise::Agent.new do |_task|
+      attempts += 1
+      raise RetryAtError, retry_at if attempts == 1
+    end
+
+    described_class.new(
+      queue: queue,
+      agent: agent,
+      observer: ->(event) { events << event },
+      sleeper: ->(_seconds) {},
+      clock: -> { now }
+    ).run
+
+    retry_event = events.find { |event| event.type == "runner.task.retry_waiting" }
+    expect(retry_event.data).to include(retry_at: retry_at.iso8601, wait_seconds: 5)
   end
 
   it "supports puts-only loggers" do

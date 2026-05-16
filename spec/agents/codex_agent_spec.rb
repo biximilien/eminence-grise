@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "tmpdir"
+
 RSpec.describe EminenceGrise::CodexAgent do
   CodexStatus = Struct.new(:success?)
 
@@ -50,6 +52,23 @@ RSpec.describe EminenceGrise::CodexAgent do
 
     expect(command).to include("--output-last-message", ".eminence-grise/codex-last-message.txt")
     expect(command.last).to eq("-")
+  end
+
+  it "emits the last Codex message when output file exists" do
+    Dir.mktmpdir("eminence-grise-codex-") do |dir|
+      output_path = File.join(dir, "last-message.txt")
+      events = []
+      executor = lambda do |_args, _instruction, working_directory:|
+        File.write(output_path, "Done\nCommit message: docs: update")
+        ["", "", CodexStatus.new(true)]
+      end
+      task = EminenceGrise::Task.new(id: "one", title: "Add README")
+
+      described_class.new(output_last_message: output_path, executor: executor, observer: ->(event) { events << event }).call(task)
+
+      final_message = events.find { |event| event.type == "agent.final_message" }
+      expect(final_message.data[:message]).to include("Commit message: docs: update")
+    end
   end
 
   it "raises when codex exec fails" do

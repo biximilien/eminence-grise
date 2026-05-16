@@ -4,6 +4,8 @@ require "json"
 require "open3"
 require "time"
 
+require_relative "../observer"
+
 module EminenceGrise
   # Base class for agents backed by external command-line tools.
   #
@@ -45,18 +47,21 @@ module EminenceGrise
     # @param stream [Boolean] whether to stream child stdout/stderr live
     # @param stdout [IO, nil] stream target for stdout
     # @param stderr [IO, nil] stream target for stderr
+    # @param observer [#call, nil] optional structured event observer
     # @param executor [#call, nil] test seam for command execution
     # @param monotonic_clock [#call] injectable monotonic clock for tests
     # @param usage_parser [#call, nil] optional parser for provider-specific usage output
-    def initialize(command:, working_directory: Dir.pwd, extra_args: [], stream: false, stdout: $stdout, stderr: $stderr, executor: nil, monotonic_clock: nil, usage_parser: nil)
+    def initialize(command:, working_directory: Dir.pwd, extra_args: [], stream: false, stdout: $stdout, stderr: $stderr, observer: nil, executor: nil, monotonic_clock: nil, usage_parser: nil)
       @command = command
       @working_directory = working_directory
       @extra_args = extra_args
+      @stream = stream
       @stream_stdout = stream ? stdout : nil
       @stream_stderr = stream ? stderr : nil
       @executor = executor || (stream ? method(:capture_streaming) : method(:capture))
       @monotonic_clock = monotonic_clock || -> { Process.clock_gettime(Process::CLOCK_MONOTONIC) }
       @usage_parser = usage_parser || method(:usage_for)
+      @observer = Observer.coerce(observer)
     end
 
     # Execute the CLI agent for a task.
@@ -67,9 +72,15 @@ module EminenceGrise
     def call(task)
       instruction = instruction_for(task)
       command = command_for(instruction)
+      Thread.current[:eminence_grise_current_task] = task
+      emit_event("agent.instruction", task, instruction: instruction)
+      emit_event("agent.command.started", task, command: command, working_directory: working_directory)
       started_at = @monotonic_clock.call
       stdout, stderr, status = @executor.call(command, stdin_for(instruction), working_directory: working_directory)
       elapsed_seconds = elapsed_since(started_at)
+      emit_stream_output(task, "stdout", stdout) unless @stream
+      emit_stream_output(task, "stderr", stderr) unless @stream
+      usage = @usage_parser.call(stdout, stderr)
       result = Result.new(
         task: task,
         instruction: instruction,
@@ -78,7 +89,15 @@ module EminenceGrise
         status: status,
         retry_at: retry_at_for(stdout, stderr),
         elapsed_seconds: elapsed_seconds,
-        usage: @usage_parser.call(stdout, stderr)
+        usage: usage
+      )
+      emit_event(
+        "agent.command.finished",
+        task,
+        status: status_payload(status),
+        elapsed_seconds: elapsed_seconds,
+        retry_at: result.retry_at&.iso8601,
+        usage: usage
       )
 
       raise execution_error(result) unless status.success?
@@ -95,7 +114,17 @@ module EminenceGrise
         elapsed_seconds: started_at ? elapsed_since(started_at) : nil,
         usage: {}
       )
+      emit_event(
+        "agent.command.spawn_failed",
+        task,
+        error_class: error.class.name,
+        error_message: error.message,
+        stderr: result.stderr,
+        elapsed_seconds: result.elapsed_seconds
+      )
       raise execution_error(result)
+    ensure
+      Thread.current[:eminence_grise_current_task] = nil
     end
 
     # Build a short error summary from command output.
@@ -189,9 +218,10 @@ module EminenceGrise
         stdin.write(stdin_data) unless stdin_data.nil?
         stdin.close
 
+        task = Thread.current[:eminence_grise_current_task]
         readers = [
-          Thread.new { pump(stdout, @stream_stdout, stdout_chunks) },
-          Thread.new { pump(stderr, @stream_stderr, stderr_chunks) }
+          Thread.new { pump(stdout, @stream_stdout, stdout_chunks, task, "stdout") },
+          Thread.new { pump(stderr, @stream_stderr, stderr_chunks, task, "stderr") }
         ]
         readers.each(&:join)
         status = wait_thread.value
@@ -200,15 +230,38 @@ module EminenceGrise
       [stdout_chunks.join, stderr_chunks.join, status]
     end
 
-    def pump(input, output, chunks)
+    def pump(input, output, chunks, task, stream)
       loop do
         chunk = input.readpartial(4096)
         chunks << chunk
+        emit_stream_output(task, stream, chunk)
         output&.write(chunk)
         output&.flush if output&.respond_to?(:flush)
       end
     rescue EOFError
       nil
+    end
+
+    def emit_event(type, task, data = {})
+      @observer.call(Event.new(type: type, task_id: task&.id, data: compact_hash(data)))
+    end
+
+    def emit_stream_output(task, stream, output)
+      return if output.nil? || output.empty?
+
+      emit_event("agent.#{stream}", task, stream: stream, chunk: output)
+    end
+
+    def status_payload(status)
+      {
+        success: status.respond_to?(:success?) ? status.success? : nil,
+        exitstatus: status.respond_to?(:exitstatus) ? status.exitstatus : nil,
+        class: status.class.name
+      }.compact
+    end
+
+    def compact_hash(hash)
+      hash.compact
     end
 
     def retry_at_for(stdout, stderr)

@@ -27,6 +27,7 @@ module EminenceGrise
     # @param stream [Boolean] whether to stream Codex stdout/stderr
     # @param stdout [IO, nil] stream target for stdout
     # @param stderr [IO, nil] stream target for stderr
+    # @param observer [#call, nil] optional structured event observer
     # @param executor [#call, nil] test seam for command execution
     def initialize(
       command: "codex",
@@ -39,6 +40,7 @@ module EminenceGrise
       stream: false,
       stdout: $stdout,
       stderr: $stderr,
+      observer: nil,
       executor: nil
     )
       @model = model
@@ -52,8 +54,13 @@ module EminenceGrise
         stream: stream,
         stdout: stdout,
         stderr: stderr,
+        observer: observer,
         executor: executor
       )
+    end
+
+    def call(task)
+      super.tap { emit_final_message(task) }
     end
 
     private
@@ -71,6 +78,13 @@ module EminenceGrise
 
     def execution_error(result)
       ExecutionError.new(result)
+    end
+
+    def emit_final_message(task)
+      return unless @output_last_message && File.file?(@output_last_message)
+
+      content = File.read(@output_last_message)
+      emit_event("agent.final_message", task, message: content)
     end
   end
 end

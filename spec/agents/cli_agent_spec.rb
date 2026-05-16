@@ -108,6 +108,30 @@ RSpec.describe EminenceGrise::CliAgent do
     expect(result.usage).to eq(raw_usage: "provider-specific output/")
   end
 
+  it "emits instruction, output, and command finished events" do
+    events = []
+    executor = lambda do |_command, _instruction, working_directory:|
+      [
+        "input tokens: 10\noutput tokens: 5\n",
+        "diagnostic",
+        CliAgentStatus.new(true)
+      ]
+    end
+    task = EminenceGrise::Task.new(id: "one", title: "Add README")
+
+    TestCliAgent.new(command: "tool", executor: executor, observer: ->(event) { events << event }).call(task)
+
+    expect(events.map(&:type)).to include(
+      "agent.instruction",
+      "agent.command.started",
+      "agent.stdout",
+      "agent.stderr",
+      "agent.command.finished"
+    )
+    finished = events.find { |event| event.type == "agent.command.finished" }
+    expect(finished.data[:usage]).to include(input_tokens: 10, output_tokens: 5)
+  end
+
   it "raises execution errors on failed status" do
     times = [10.0, 11.5]
     executor = ->(_command, _instruction, working_directory:) { ["", "nope", CliAgentStatus.new(false)] }
@@ -135,6 +159,21 @@ RSpec.describe EminenceGrise::CliAgent do
       expect(error.result.status).not_to be_success
       expect(error.result.elapsed_seconds).to eq(0.25)
     }
+  end
+
+  it "emits command spawn failure events" do
+    events = []
+    executor = lambda do |_command, _instruction, working_directory:|
+      raise Errno::ENOENT, "tool"
+    end
+    task = EminenceGrise::Task.new(id: "one", title: "Add README")
+
+    expect do
+      TestCliAgent.new(command: "tool", executor: executor, observer: ->(event) { events << event }).call(task)
+    end.to raise_error(EminenceGrise::CliAgent::ExecutionError)
+
+    spawn_failed = events.find { |event| event.type == "agent.command.spawn_failed" }
+    expect(spawn_failed.data).to include(error_class: "Errno::ENOENT")
   end
 
   it "summarizes noisy failed output" do
@@ -218,6 +257,27 @@ RSpec.describe EminenceGrise::CliAgent do
     expect(stderr.string).to end_with("visible error")
     expect(result.stdout).to eq(stdout.string)
     expect(result.stderr).to eq(stderr.string)
+  end
+
+  it "emits subprocess chunks while streaming" do
+    events = []
+    agent = StreamingCliAgent.new(
+      command: RbConfig.ruby,
+      extra_args: [
+        "-e",
+        "STDOUT.write('visible output'); STDERR.write('visible error')"
+      ],
+      stream: true,
+      stdout: nil,
+      stderr: nil,
+      observer: ->(event) { events << event }
+    )
+    task = EminenceGrise::Task.new(id: "one", title: "Add README")
+
+    agent.call(task)
+
+    expect(events.select { |event| event.type == "agent.stdout" }.map { |event| event.data[:chunk] }.join).to include("visible output")
+    expect(events.select { |event| event.type == "agent.stderr" }.map { |event| event.data[:chunk] }.join).to include("visible error")
   end
 
   it "can capture stderr without streaming it" do

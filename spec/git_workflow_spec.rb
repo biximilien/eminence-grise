@@ -79,6 +79,27 @@ RSpec.describe EminenceGrise::GitWorkflow do
     expect(git!(repo, "ls-files")).to include("notes.md")
   end
 
+  it "emits branch, diff, and commit events" do
+    events = []
+    workflow = described_class.new(observer: ->(event) { events << event })
+    workflow.before_task(task)
+    File.write(File.join(repo, "README.md"), "# Better Sandbox\n")
+
+    workflow.after_task(task, "done")
+
+    expect(events.map(&:type)).to include(
+      "git.repository.verified",
+      "git.branch.created",
+      "git.diff",
+      "git.commit.created"
+    )
+    diff_event = events.find { |event| event.type == "git.diff" }
+    expect(diff_event.data[:diff]).to include("Better Sandbox")
+    expect(diff_event.data[:changed_files]).to eq(["README.md"])
+    commit_event = events.find { |event| event.type == "git.commit.created" }
+    expect(commit_event.data[:commit_sha]).to match(/\A[0-9a-f]{40}\z/)
+  end
+
   it "uses an AgentResult commit message before task metadata" do
     workflow = described_class.new
     workflow.before_task(task)
@@ -98,6 +119,17 @@ RSpec.describe EminenceGrise::GitWorkflow do
     workflow.after_task(task, "done")
 
     expect(git!(repo, "rev-parse", "HEAD").strip).to eq(original_head)
+  end
+
+  it "emits commit skipped when there are no changes" do
+    events = []
+    workflow = described_class.new(observer: ->(event) { events << event })
+    workflow.before_task(task)
+
+    workflow.after_task(task, "done")
+
+    skipped = events.find { |event| event.type == "git.commit.skipped" }
+    expect(skipped.data).to include(reason: "no changes")
   end
 
   it "fails when changes exist but no commit message is available" do

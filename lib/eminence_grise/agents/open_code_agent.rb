@@ -27,6 +27,7 @@ module EminenceGrise
     # @param stream [Boolean] whether to stream OpenCode stdout/stderr
     # @param stdout [IO, nil] stream target for stdout
     # @param stderr [IO, nil] stream target for stderr
+    # @param observer [#call, nil] optional structured event observer
     # @param executor [#call, nil] test seam for command execution
     def initialize(
       command: "opencode",
@@ -38,6 +39,7 @@ module EminenceGrise
       stream: false,
       stdout: $stdout,
       stderr: $stderr,
+      observer: nil,
       executor: nil
     )
       @model = model
@@ -50,6 +52,7 @@ module EminenceGrise
         stream: stream,
         stdout: stdout,
         stderr: stderr,
+        observer: observer,
         executor: executor
       )
     end

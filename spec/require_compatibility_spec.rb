@@ -21,6 +21,9 @@ RSpec.describe "require compatibility" do
         EminenceGrise::AgentResult,
         EminenceGrise::RouterAgent,
         EminenceGrise::GitWorkflow,
+        EminenceGrise::Observer,
+        EminenceGrise::NullObserver,
+        EminenceGrise::Event,
         EminenceGrise::ResultHandler,
         EminenceGrise::TaskPayload,
         EminenceGrise::ActiveJob,
@@ -65,6 +68,15 @@ RSpec.describe "require compatibility" do
     _stdout, stderr, status = ruby_requires(<<~RUBY)
       require "eminence_grise/git_workflow"
       exit(EminenceGrise::GitWorkflow ? 0 : 1)
+    RUBY
+
+    expect(status).to be_success, stderr
+  end
+
+  it "supports the canonical observer direct require path" do
+    _stdout, stderr, status = ruby_requires(<<~RUBY)
+      require "eminence_grise/observer"
+      exit(EminenceGrise::Observer && EminenceGrise::NullObserver && EminenceGrise::Event ? 0 : 1)
     RUBY
 
     expect(status).to be_success, stderr
