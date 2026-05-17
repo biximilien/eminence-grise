@@ -322,8 +322,12 @@ module EminenceGrise
     end
 
     def cost_value(text)
-      match = text.match(/(?:estimated\s+)?cost\D+\$?([0-9]+(?:\.[0-9]+)?)/i)
-      Float(match[1]) if match
+      text.each_line do |line|
+        match = line.match(/\A\s*(?:estimated\s+)?cost\s*(?::|=|\s)\s*\$?([0-9]+(?:\.[0-9]+)?)/i)
+        return Float(match[1]) if match
+      end
+
+      nil
     end
   end
 end

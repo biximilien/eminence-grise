@@ -98,6 +98,21 @@ RSpec.describe EminenceGrise::CliAgent do
     )
   end
 
+  it "does not treat unrelated estimated_cost text followed by a task number as cost usage" do
+    executor = lambda do |_command, _instruction, working_directory:|
+      [
+        "",
+        "SprintTicket, input_tokens, output_tokens, cached_tokens, total_tokens, estimated_cost, app/jobs/agent_task_job.rb\n\n## Task 3: Show completed work",
+        CliAgentStatus.new(true)
+      ]
+    end
+    task = EminenceGrise::Task.new(id: "one", title: "Add README")
+
+    result = TestCliAgent.new(command: "tool", executor: executor).call(task)
+
+    expect(result.usage).to eq({})
+  end
+
   it "supports provider-specific usage parsers" do
     executor = ->(_command, _instruction, working_directory:) { ["provider-specific output", "", CliAgentStatus.new(true)] }
     parser = ->(stdout, stderr) { { raw_usage: "#{stdout}/#{stderr}".strip } }
